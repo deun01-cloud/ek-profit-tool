@@ -1367,7 +1367,9 @@ function calcPnL(){
   var rate    = parseFloat(document.getElementById('usd-rate').value)||1350;
   var ekCogs  = S.ek  ? S.ek.reduce(function(s,i){return s+i.supply},0)  : 0;
   var expCogs = S.exp ? S.exp.reduce(function(s,i){return s+i.amount},0) : 0;
-  var cnCogs  = S.cn  ? S.cn.usd * rate : 0;
+  var cnCogs  = 0;
+  if(S.cnList&&S.cnList.length) S.cnList.forEach(function(inv){cnCogs+=inv.usd*rate;});
+  else if(S.cn) cnCogs = S.cn.usd * rate;
   var manCogs = S.manual.reduce(function(s,m){return s+m.amount},0);
   var cogs    = ekCogs + expCogs + cnCogs + manCogs;
 
