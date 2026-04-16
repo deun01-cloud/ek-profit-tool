@@ -162,7 +162,7 @@ tbody tr:hover td{background:#fafafa}
     </div>
   </div>
   <div class="hdr-right">
-    <input type="month" id="g-period">
+    <input type="month" id="g-period" onchange="onPeriodChange()">
     <button class="btn btn-ac" onclick="savePeriod()">💾 지금 저장</button>
   </div>
 </div>
@@ -1362,26 +1362,50 @@ function totalFixed(){return S.fixed.reduce(function(s,f){return s+f.amount},0)}
 //  Render — PnL
 // ─────────────────────────────────────────
 function calcPnL(){
-  // ── 매출 구성 ──────────────────────────────
-  var revDelivery = totalSalesDelivery(); // 납품
-  var revSample   = totalSampleRev();     // 샘플 청구 (매출)
-  var revDev      = totalDevRev();        // 개발비 청구 (매출)
-  var rev         = revDelivery + revSample + revDev;  // 총 매출
+  var period = document.getElementById('g-period').value;
+  var db = JSON.parse(localStorage.getItem('ek_records')||'{}');
+  var rec = db[period];
 
-  // ── 원가 구성 ──────────────────────────────
-  var rate    = parseFloat(document.getElementById('usd-rate').value)||1350;
-  var ekCogs  = S.ek  ? S.ek.reduce(function(s,i){return s+i.supply},0)  : 0;
-  var expCogs = S.exp ? S.exp.reduce(function(s,i){return s+i.amount},0) : 0;
-  var cnCogs  = 0;
-  if(S.cnList&&S.cnList.length) S.cnList.forEach(function(inv){cnCogs+=inv.usd*rate;});
-  else if(S.cn) cnCogs = S.cn.usd * rate;
-  var manCogs = S.manual.reduce(function(s,m){return s+m.amount},0);
-  var cogs    = ekCogs + expCogs + cnCogs + manCogs;
+  // 현재 로드된 파일 데이터가 없고 저장된 데이터가 있으면 그걸 사용
+  var hasLiveData = (S.sales&&S.sales.length)||(S.sample&&S.sample.length)||
+                   (S.ek&&S.ek.length)||(S.exp&&S.exp.length)||
+                   (S.cnList&&S.cnList.length);
 
-  var fx    = totalFixed();
-  var gross = rev - cogs;
-  var op    = gross - fx;
-  var cogsR = rev>0 ? cogs/rev*100 : 0;
+  var rev, cogs, fx, revDelivery, revSample, revDev, op, gross, cogsR;
+  var ekCogs=0, expCogs=0, cnCogs=0, manCogs=0;
+  var rate = parseFloat(document.getElementById('usd-rate').value)||1350;
+
+  if(!hasLiveData && rec){
+    // ── 저장된 데이터로 표시 ──
+    rev         = rec.rev   ||0;
+    cogs        = rec.cogs  ||0;
+    fx          = rec.fixed ||0;
+    revDelivery = rec.revD  ||0;
+    revSample   = rec.revS  ||0;
+    revDev      = rec.revDev||0;
+    gross = rev - cogs;
+    op    = gross - fx;
+    cogsR = rev>0 ? cogs/rev*100 : 0;
+    // 원가 내역은 저장 안되므로 합계만 표시
+    ekCogs = cogs; // 원가 합계로 표시
+  } else {
+    // ── 실시간 파일 데이터 계산 ──
+    revDelivery = totalSalesDelivery();
+    revSample   = totalSampleRev();
+    revDev      = totalDevRev();
+    rev         = revDelivery + revSample + revDev;
+    ekCogs  = S.ek  ? S.ek.reduce(function(s,i){return s+i.supply},0)  : 0;
+    expCogs = S.exp ? S.exp.reduce(function(s,i){return s+i.amount},0) : 0;
+    cnCogs  = 0;
+    if(S.cnList&&S.cnList.length) S.cnList.forEach(function(inv){cnCogs+=inv.usd*rate;});
+    else if(S.cn) cnCogs = S.cn.usd * rate;
+    manCogs = S.manual.reduce(function(s,m){return s+m.amount},0);
+    cogs    = ekCogs + expCogs + cnCogs + manCogs;
+    fx      = totalFixed();
+    gross   = rev - cogs;
+    op      = gross - fx;
+    cogsR   = rev>0 ? cogs/rev*100 : 0;
+  }
 
   // ── 메트릭 카드 ────────────────────────────
   document.getElementById('p-rev').textContent    = won(rev);
@@ -1918,19 +1942,41 @@ function printInv(){
 // ─────────────────────────────────────────
 var _autoSyncTimer = null;
 function autoSyncNotion(){
-  // 300ms 디바운스 — 여러 파일 연속 업로드 시 마지막 것만 저장
   clearTimeout(_autoSyncTimer);
   _autoSyncTimer = setTimeout(function(){
     // 프록시 방식 — 항상 동기화
     var hasSales = S.sales&&S.sales.length;
     var hasSample = S.sample&&S.sample.length;
-    var hasEk = S.ek&&S.ek.length;
-    var hasExp = S.exp&&S.exp.length;
-    var hasCN = S.cnList&&S.cnList.length;
-    // 최소 매출 데이터가 있어야 저장
     if(!hasSales&&!hasSample) return;
-    savePeriod(); // 로컬 + Notion 동시 저장
+    savePeriod();
   }, 800);
+}
+
+// ─────────────────────────────────────────
+//  Period change — 월 변경 시 저장 데이터 표시
+// ─────────────────────────────────────────
+function onPeriodChange(){
+  var period = document.getElementById('g-period').value;
+  if(!period) return;
+
+  var db = JSON.parse(localStorage.getItem('ek_records')||'{}');
+  var rec = db[period];
+
+  // 대시보드 월도 동기화
+  var parts = period.split('-');
+  if(parts.length===2){
+    dashYear_  = parseInt(parts[0]);
+    dashMonth_ = parseInt(parts[1]);
+  }
+
+  if(rec){
+    // 저장된 데이터가 있으면 손익 계산 탭 바로 갱신
+    toast('📂 '+period+' 저장 데이터 불러옴','ok');
+    calcPnL();
+  } else {
+    // 없으면 안내
+    toast('📭 '+period+' 저장된 데이터 없음 — 파일을 업로드하세요','ok');
+  }
 }
 
 async function savePeriod(){
