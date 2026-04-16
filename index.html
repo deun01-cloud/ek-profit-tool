@@ -845,10 +845,10 @@ function rf(file,type){
   r.onload=function(e){
     try{
       var wb=XLSX.read(e.target.result,{type:'array'});
-      if(type==='sales') {S.sales =parseSales(wb); markDz('dz-sales', 'i-sales', 's-sales', file.name,S.sales.length+'건'); renderSales(); autoSyncNotion();}
-      if(type==='sample'){S.sample=parseSample(wb);markDz('dz-sample','i-sample','s-sample',file.name,S.sample.length+'건'); renderSample(); autoSyncNotion();}
-      if(type==='ek')    {S.ek    =parseEK(wb);    markDz('dz-ek',   'i-ek',   's-ek',   file.name,S.ek.length+'건');    renderPurchase(); autoSyncNotion();}
-      if(type==='exp')   {S.exp   =parseExp(wb);   markDz('dz-exp',  'i-exp',  's-exp',  file.name,S.exp.length+'건');   renderPurchase(); autoSyncNotion();}
+      if(type==='sales') {S.sales =parseSales(wb); markDz('dz-sales', 'i-sales', 's-sales', file.name,S.sales.length+'건'); renderSales(); calcPnL(); autoSyncNotion();}
+      if(type==='sample'){S.sample=parseSample(wb);markDz('dz-sample','i-sample','s-sample',file.name,S.sample.length+'건'); renderSample(); calcPnL(); autoSyncNotion();}
+      if(type==='ek')    {S.ek    =parseEK(wb);    markDz('dz-ek',   'i-ek',   's-ek',   file.name,S.ek.length+'건');    renderPurchase(); calcPnL(); autoSyncNotion();}
+      if(type==='exp')   {S.exp   =parseExp(wb);   markDz('dz-exp',  'i-exp',  's-exp',  file.name,S.exp.length+'건');   renderPurchase(); calcPnL(); autoSyncNotion();}
       if(type==='cn'){
         var parsed=parseCN(wb);
         S.cn=parsed; // 하위 호환
@@ -857,7 +857,7 @@ function rf(file,type){
         var totalUSD=S.cnList.reduce(function(s,i){return s+i.usd},0);
         var dateInfo=parsed.invDate?' ('+parsed.invDate+')':'';
         markDz('dz-cn','i-cn','s-cn',file.name,S.cnList.length+'개 · USD '+totalUSD.toFixed(0)+dateInfo);
-        renderPurchase(); autoSyncNotion();
+        renderPurchase(); calcPnL(); autoSyncNotion();
       }
     }catch(err){toast(err.message,'err')}
   };
@@ -1240,34 +1240,38 @@ function renderFixed(){
 function updateFixedTotal(){var t=S.fixed.reduce(function(s,f){return s+f.amount},0);document.getElementById('fixed-total').textContent=won(t)}
 function saveFixed(){
   localStorage.setItem('ek_fixed',JSON.stringify(S.fixed));
-  // Notion 토큰 있으면 자동 동기화
-  syncFixedToNotion();
+  // debounce — 연속 입력 시 마지막 변경만 저장 (1.5초)
+  clearTimeout(saveFixed._timer);
+  saveFixed._timer = setTimeout(function(){ syncFixedToNotion(); }, 1500);
 }
 
+var _fixedSyncing = false; // 동시 실행 방지
+
 async function syncFixedToNotion(){
+  if(_fixedSyncing) return; // 이미 실행 중이면 스킵
   if(!S.fixed.length) return;
+  _fixedSyncing = true;
   try{
-    // 기존 항목 모두 삭제 후 재등록 (간단한 덮어쓰기 방식)
     // 1. 기존 페이지 ID 목록 조회
     var qResp=await fetch(NOTION_PROXY+'/databases/'+NOTION_FIXED_DB+'/query',{
       method:'POST',
       headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'},
       body:JSON.stringify({page_size:100})
     });
-    if(!qResp.ok) return;
+    if(!qResp.ok){ _fixedSyncing=false; return; }
     var qData=await qResp.json();
-    // 2. 기존 페이지 아카이브 (삭제)
-    var delPromises=(qData.results||[]).map(function(p){
-      return fetch(NOTION_PROXY+'/pages/'+p.id,{
+    // 2. 기존 페이지 순차 아카이브 (병렬 X — Notion API rate limit 방지)
+    for(var i=0;i<(qData.results||[]).length;i++){
+      await fetch(NOTION_PROXY+'/pages/'+qData.results[i].id,{
         method:'PATCH',
         headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'},
         body:JSON.stringify({archived:true})
       });
-    });
-    await Promise.all(delPromises);
-    // 3. 새 항목 등록
-    var addPromises=S.fixed.map(function(f,i){
-      return fetch(NOTION_PROXY+'/pages',{
+    }
+    // 3. 새 항목 순차 등록
+    for(var i=0;i<S.fixed.length;i++){
+      var f=S.fixed[i];
+      await fetch(NOTION_PROXY+'/pages',{
         method:'POST',
         headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'},
         body:JSON.stringify({
@@ -1280,11 +1284,12 @@ async function syncFixedToNotion(){
           }
         })
       });
-    });
-    await Promise.all(addPromises);
+    }
     document.getElementById('notion-sync-status').textContent='✅ 고정비 Notion 동기화 완료';
   }catch(e){
     console.warn('고정비 Notion 동기화 실패:', e.message);
+  } finally {
+    _fixedSyncing = false;
   }
 }
 
