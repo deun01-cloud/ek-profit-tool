@@ -163,7 +163,7 @@ tbody tr:hover td{background:#fafafa}
   </div>
   <div class="hdr-right">
     <input type="month" id="g-period">
-    <button class="btn btn-ac" onclick="savePeriod()">💾 저장 &amp; Notion 동기화</button>
+    <button class="btn btn-ac" onclick="savePeriod()">💾 지금 저장</button>
   </div>
 </div>
 
@@ -174,6 +174,7 @@ tbody tr:hover td{background:#fafafa}
   <button class="tab"     onclick="go('fixed',this)">🏢 고정비</button>
   <button class="tab"     onclick="go('pnl',this)">📊 손익 계산</button>
   <button class="tab"     onclick="go('inv',this)">🖨️ 거래명세서</button>
+  <button class="tab"     onclick="go('billing',this)">💰 청구 관리</button>
   <button class="tab"     onclick="go('dash',this)">📈 대시보드</button>
 </div>
 
@@ -297,9 +298,9 @@ tbody tr:hover td{background:#fafafa}
       <span class="dz-ico" id="i-cn">📤</span>
       <div class="dz-ttl">중국 공장 인보이스</div>
       <div class="dz-dsc">USD 인보이스 엑셀</div>
-      <div class="dz-hint">금액 컬럼 자동 탐색 · 아래 환율로 KRW 변환</div>
+      <div class="dz-hint">여러 파일 동시 드래그&드롭 가능 · 금액 컬럼 자동 탐색 · 아래 환율로 KRW 변환</div>
       <div class="dz-stat" id="s-cn"></div>
-      <input type="file" id="fi-cn" accept=".xlsx,.xls" onchange="lf(this,'cn')">
+      <input type="file" id="fi-cn" accept=".xlsx,.xls" multiple onchange="lfMulti(this,'cn')">
     </div>
   </div>
 
@@ -335,7 +336,7 @@ tbody tr:hover td{background:#fafafa}
       <div class="card-badge" id="pur-sum-cnt"></div>
     </div>
     <table>
-      <thead><tr><th>구분</th><th>거래처 / 항목</th><th class="r">금액</th><th>비고</th></tr></thead>
+      <thead><tr><th>구분</th><th>거래처 / 항목</th><th>인보이스 날짜</th><th class="r">USD</th><th class="r">금액 (KRW)</th></tr></thead>
       <tbody id="tb-pur"></tbody>
     </table>
   </div>
@@ -368,7 +369,7 @@ tbody tr:hover td{background:#fafafa}
       <span style="font-size:20px;font-weight:700;color:var(--rd)" id="fixed-total">0원</span>
     </div>
   </div>
-  <div style="font-size:11px;color:var(--hi);margin-top:4px">* 브라우저 localStorage에 자동 저장됩니다. 다른 기기에서는 다시 입력해주세요.</div>
+  <div style="font-size:11px;color:var(--hi);margin-top:4px">* 한 번 입력하면 삭제하지 않는 한 영구 저장됩니다. 다른 기기·브라우저에서는 다시 입력이 필요합니다.</div>
 </div>
 
 <!-- ══════════════════════════════════════
@@ -533,6 +534,56 @@ tbody tr:hover td{background:#fafafa}
 </div>
 
 <!-- ══════════════════════════════════════
+     TAB: 청구 관리
+══════════════════════════════════════ -->
+<div class="pg" id="pg-billing">
+
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+    <div>
+      <div style="font-size:13px;color:var(--mu)">거래명세서 발행 시 자동 등록됩니다. 입금 및 계산서 발행 여부를 체크하세요.</div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn" onclick="syncBillingToNotion()">📤 Notion 동기화</button>
+      <button class="btn" style="color:var(--rd)" onclick="clearBilling()">🗑️ 전체 삭제</button>
+    </div>
+  </div>
+
+  <!-- 미수금 요약 카드 -->
+  <div id="billing-kpi" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:20px"></div>
+
+  <!-- 청구 목록 테이블 -->
+  <div class="card" id="billing-card">
+    <div class="card-h">
+      <div class="card-t">청구 현황</div>
+      <div class="card-badge" id="billing-cnt"></div>
+    </div>
+    <div id="billing-empty" class="empty" style="padding:40px">
+      <div class="empty-ico">🖨️</div>
+      <div class="empty-ttl">발행된 거래명세서가 없습니다</div>
+      <div style="font-size:12px;color:var(--mu)">거래명세서 탭에서 Excel 다운로드 시 자동으로 등록됩니다</div>
+    </div>
+    <div id="billing-table-wrap" style="display:none">
+      <table>
+        <thead>
+          <tr>
+            <th>기간</th>
+            <th>거래처</th>
+            <th class="r">청구금액</th>
+            <th class="r">공급가액</th>
+            <th style="text-align:center">계산서 발행</th>
+            <th style="text-align:center">입금 완료</th>
+            <th>입금일</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="tb-billing"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════
      TAB 6: 대시보드
 ══════════════════════════════════════ -->
 <div class="pg" id="pg-dash">
@@ -561,7 +612,7 @@ tbody tr:hover td{background:#fafafa}
     </div>
 
     <!-- KPI 4개 -->
-    <div id="dash-kpi" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:20px"></div>
+    <div id="dash-kpi" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:20px"></div>
 
     <!-- 월별 매출/원가/이익 차트 + 고객사별 매출 차트 -->
     <div class="g2" style="margin-bottom:14px">
@@ -691,12 +742,20 @@ tbody tr:hover td{background:#fafafa}
 
 <script>
 // ─────────────────────────────────────────
+//  Notion DB IDs
+// ─────────────────────────────────────────
+var NOTION_PNL_DB     = '33485ab8032180a88f6f000b4013659e';  // 월별 손익관리
+var NOTION_FIXED_DB   = 'abf528f5b27242c9a43fc0b821d3bae1';  // 고정비 설정
+var NOTION_BILLING_DB = '6373a854b0914107b66969c34f6f7ea4';  // 청구 관리
+
+// ─────────────────────────────────────────
 //  State
 // ─────────────────────────────────────────
 var S = {
   sales:null,   // 납품 매출자료 items[]
   sample:null,  // 샘플·개발비 내역 items[]
-  ek:null, exp:null, cn:null,
+  ek:null, exp:null, cn:null, cnList:[],  // 중국 인보이스 복수
+  billing:[],  // 청구 관리 목록
   manual:[], fixed:[], selCust:null
 };
 
@@ -706,12 +765,26 @@ var S = {
 (function(){
   var d=new Date();
   document.getElementById('g-period').value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
-  S.fixed=JSON.parse(localStorage.getItem('ek_fixed')||'null') ||
-    [{label:'임직원 급여',amount:0},{label:'사무실 임대료',amount:0},{label:'통신비',amount:0}];
+  var savedFixed = localStorage.getItem('ek_fixed');
+  if(savedFixed){
+    try{ S.fixed = JSON.parse(savedFixed) || []; }
+    catch(e){ S.fixed = []; }
+  } else {
+    // 최초 실행 시 기본 항목 제공 (amount는 0 — 사용자가 직접 입력)
+    S.fixed = [{label:'임직원 급여',amount:0},{label:'사무실 임대료',amount:0},{label:'통신비',amount:0}];
+    saveFixed(); // 최초에도 바로 저장
+  }
   renderFixed();
+  loadBilling();
   var nc=JSON.parse(localStorage.getItem('ek_notion')||'{}');
   if(nc.t) document.getElementById('notion-token').value=nc.t;
   document.getElementById('notion-dbid').value=nc.d||'33485ab8032180a88f6f000b4013659e';
+  // Notion 토큰 있으면 고정비 자동 로드 (로컬보다 Notion 우선)
+  if(nc.t){
+    loadFixedFromNotion(nc.t).then(function(ok){
+      if(ok) document.getElementById('notion-sync-status').textContent='✅ Notion에서 고정비 불러왔습니다';
+    });
+  }
 })();
 
 // ─────────────────────────────────────────
@@ -723,6 +796,7 @@ function go(id,el){
   document.getElementById('pg-'+id).classList.add('on');
   el.classList.add('on');
   if(id==='dash'){ document.getElementById('dash-view-month').style.display='block'; document.getElementById('dash-view-year').style.display='none'; renderDash(); }
+  if(id==='billing') renderBilling();
   if(id==='inv')  renderInvArea();
   if(id==='pnl')  calcPnL();
 }
@@ -751,24 +825,47 @@ function dzd(e,type){
   e.preventDefault();
   var dzId={'sales':'dz-sales','sample':'dz-sample','ek':'dz-ek','exp':'dz-exp','cn':'dz-cn'}[type];
   document.getElementById(dzId).classList.remove('drag');
-  var f=e.dataTransfer.files[0];
-  if(f) rf(f,type);
+  var files=e.dataTransfer.files;
+  if(!files||!files.length) return;
+  if(type==='cn'){
+    // 여러 파일 순차 처리
+    for(var i=0;i<files.length;i++) rf(files[i],'cn');
+  } else {
+    rf(files[0],type);
+  }
 }
 
 // ─────────────────────────────────────────
 //  File load
 // ─────────────────────────────────────────
 function lf(inp,type){if(inp.files[0]) rf(inp.files[0],type)}
+function lfMulti(inp,type){
+  if(!inp.files||!inp.files.length) return;
+  if(type==='cn'){
+    for(var i=0;i<inp.files.length;i++) rf(inp.files[i],'cn');
+  } else {
+    rf(inp.files[0],type);
+  }
+}
 function rf(file,type){
   var r=new FileReader();
   r.onload=function(e){
     try{
       var wb=XLSX.read(e.target.result,{type:'array'});
-      if(type==='sales') {S.sales =parseSales(wb); markDz('dz-sales', 'i-sales', 's-sales', file.name,S.sales.length+'건'); renderSales()}
-      if(type==='sample'){S.sample=parseSample(wb);markDz('dz-sample','i-sample','s-sample',file.name,S.sample.length+'건'); renderSample()}
-      if(type==='ek')    {S.ek    =parseEK(wb);    markDz('dz-ek',   'i-ek',   's-ek',   file.name,S.ek.length+'건');    renderPurchase()}
-      if(type==='exp')   {S.exp   =parseExp(wb);   markDz('dz-exp',  'i-exp',  's-exp',  file.name,S.exp.length+'건');   renderPurchase()}
-      if(type==='cn')    {S.cn    =parseCN(wb);     markDz('dz-cn',   'i-cn',   's-cn',   file.name,'USD '+S.cn.usd.toFixed(0));renderPurchase()}
+      if(type==='sales') {S.sales =parseSales(wb); markDz('dz-sales', 'i-sales', 's-sales', file.name,S.sales.length+'건'); renderSales(); autoSyncNotion();}
+      if(type==='sample'){S.sample=parseSample(wb);markDz('dz-sample','i-sample','s-sample',file.name,S.sample.length+'건'); renderSample(); autoSyncNotion();}
+      if(type==='ek')    {S.ek    =parseEK(wb);    markDz('dz-ek',   'i-ek',   's-ek',   file.name,S.ek.length+'건');    renderPurchase(); autoSyncNotion();}
+      if(type==='exp')   {S.exp   =parseExp(wb);   markDz('dz-exp',  'i-exp',  's-exp',  file.name,S.exp.length+'건');   renderPurchase(); autoSyncNotion();}
+      if(type==='cn'){
+        var parsed=parseCN(wb);
+        S.cn=parsed; // 하위 호환
+        S.cnList.push({fname:file.name, usd:parsed.usd, lastRow:parsed.lastRow,
+                       invNo:parsed.invNo, invDate:parsed.invDate});
+        var totalUSD=S.cnList.reduce(function(s,i){return s+i.usd},0);
+        var dateInfo=parsed.invDate?' ('+parsed.invDate+')':'';
+        markDz('dz-cn','i-cn','s-cn',file.name,S.cnList.length+'개 · USD '+totalUSD.toFixed(0)+dateInfo);
+        renderPurchase(); autoSyncNotion();
+      }
     }catch(err){toast(err.message,'err')}
   };
   r.readAsArrayBuffer(file);
@@ -789,6 +886,7 @@ function czd(type){
   var icons={'sales':'📤','sample':'📤','ek':'📤','exp':'📤','cn':'📤'};
   var ids=m[type]; if(!ids) return;
   S[type]=null;
+  if(type==='cn') S.cnList=[];
   document.getElementById(ids[0]).classList.remove('ok');
   document.getElementById(ids[1]).textContent=icons[type];
   document.getElementById(ids[2]).textContent='';
@@ -896,21 +994,84 @@ function parseExp(wb){
 function parseCN(wb){
   var ws=wb.Sheets[wb.SheetNames[0]];
   var rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
+
+  // ── Amount 컬럼 위치 탐색 (헤더 행에서 'Amount' 찾기) ──
   var amtCol=-1;
-  // 헤더 행에서 amount/total/price 컬럼 탐색
-  for(var i=0;i<Math.min(rows.length,5);i++){
+  for(var i=0;i<Math.min(rows.length,8);i++){
     rows[i].forEach(function(v,j){
-      if(amtCol<0&&v&&String(v).toLowerCase().match(/amount|total|price|금액|합계/)) amtCol=j;
+      if(amtCol<0&&v&&String(v).toLowerCase().match(/^amount$/)) amtCol=j;
     });
   }
-  var usd=0;
-  if(amtCol>=0){
-    for(var i=1;i<rows.length;i++){var v=parseFloat(rows[i][amtCol]);if(!isNaN(v)&&v>0)usd+=v}
-  } else {
-    // fallback: 숫자 컬럼 중 합리적 USD 범위 값
-    rows.forEach(function(r){r.forEach(function(v){if(typeof v==='number'&&v>0&&v<50000)usd+=v})});
+  // 못 찾으면 마지막 컬럼으로 fallback
+  if(amtCol<0){
+    for(var i=0;i<rows.length;i++){
+      var len=rows[i].filter(function(v){return v!==null;}).length;
+      if(len>amtCol) amtCol=len-1;
+    }
+    // 실제로는 헤더행에서 가장 오른쪽 컬럼
+    if(rows.length>0) amtCol=rows[0].length-1;
   }
-  return {usd:usd, rows:rows, amtCol:amtCol};
+
+  // ── 숫자 파싱 헬퍼: "USD $9000", "4000", "9,500" 등 처리 ──
+  function parseAmt(v){
+    if(v===null||v===undefined) return 0;
+    var s=String(v).replace(/,/g,'').replace(/\s/g,'');
+    var nums=s.match(/[\d]+(?:\.\d+)?/g);
+    if(!nums||!nums.length) return 0;
+    // 여러 숫자가 있으면 가장 큰 값 사용 (예: "USD $9000" → 9000)
+    return Math.max.apply(null, nums.map(Number));
+  }
+
+  // ── 핵심 로직: 마지막 데이터 행의 Amount 컬럼 값만 사용 ──
+  // 데이터 행 = Amount 컬럼에 값이 있는 행들 중 마지막
+  var dataRows=[];
+  for(var i=0;i<rows.length;i++){
+    var r=rows[i];
+    var amtVal=r[amtCol];
+    if(amtVal!==null&&amtVal!==undefined&&String(amtVal).trim()!==''){
+      var parsed=parseAmt(amtVal);
+      if(parsed>0) dataRows.push({row:i, val:amtVal, parsed:parsed});
+    }
+  }
+
+  var usd=0;
+  var lastRow=null;
+  if(dataRows.length>0){
+    lastRow=dataRows[dataRows.length-1];
+    usd=lastRow.parsed;
+  }
+
+  // ── 인보이스 번호 & 날짜 탐색 ──
+  // 패턴: "No.and date of invoice" 헤더 → 바로 다음 행에 번호, 그 다음 행에 날짜
+  var invNo='', invDate='';
+  for(var i=0;i<rows.length;i++){
+    var r=rows[i];
+    for(var j=0;j<r.length;j++){
+      if(r[j]&&String(r[j]).toLowerCase().includes('no.and date of invoice')){
+        // 번호: 같은 컬럼, 다음 행
+        if(rows[i+1]&&rows[i+1][j]) invNo=String(rows[i+1][j]).trim();
+        // 날짜: 같은 컬럼, 2행 후
+        if(rows[i+2]&&rows[i+2][j]){
+          var dv=rows[i+2][j];
+          // Date 객체 또는 문자열 처리
+          if(dv instanceof Date){
+            invDate=dv.toISOString().slice(0,10);
+          } else {
+            var ds=String(dv).trim();
+            // "2026-03-09 00:00:00" → "2026-03-09"
+            var dm=ds.match(/(\d{4}[-./]\d{1,2}[-./]\d{1,2})/);
+            if(dm) invDate=dm[1].replace(/[./]/g,'-');
+          }
+        }
+        break;
+      }
+    }
+    if(invNo||invDate) break;
+  }
+
+  // 날짜 못 찾으면 파일명에서 추출 시도 (파일명은 호출부에서 주입)
+  return {usd:usd, rows:rows, amtCol:amtCol, lastRow:lastRow, dataRows:dataRows,
+          invNo:invNo, invDate:invDate};
 }
 
 // ─────────────────────────────────────────
@@ -1026,19 +1187,48 @@ function renderPurchase(){
   if(S.exp&&S.exp.length){
     S.exp.forEach(function(it){rows.push({type:'지출내역',cls:'bExp',vendor:it.vendor,amount:it.amount,note:it.inclVat?'부가세 포함→순액':'순액'})});
   }
-  if(S.cn){
-    var rate=parseFloat(document.getElementById('usd-rate').value)||1350;
-    var krw=S.cn.usd*rate;
-    document.getElementById('cn-preview').textContent='≈ '+won(krw)+' (USD '+S.cn.usd.toFixed(0)+' × '+rate+')';
-    rows.push({type:'중국인보이스',cls:'bCN',vendor:'중국 공장 인보이스',amount:krw,note:'USD '+S.cn.usd.toFixed(0)+' × '+rate+'원'});
+  var rate=parseFloat(document.getElementById('usd-rate').value)||1350;
+  var cnItems = S.cnList&&S.cnList.length ? S.cnList : (S.cn?[{fname:'인보이스',usd:S.cn.usd}]:[]);
+  if(cnItems.length){
+    var totalUSD=cnItems.reduce(function(s,i){return s+i.usd},0);
+    document.getElementById('cn-preview').textContent='≈ '+won(totalUSD*rate)+' (USD '+totalUSD.toFixed(0)+' × '+rate+')';
+    cnItems.forEach(function(inv){
+      rows.push({type:'중국인보이스',cls:'bCN',isCN:true,
+        vendor:inv.fname||'중국 공장 인보이스',
+        usd:inv.usd, amount:Math.round(inv.usd*rate),
+        invDate:inv.invDate||'', invNo:inv.invNo||'',
+        note:'USD '+inv.usd.toFixed(0)});
+    });
   } else {document.getElementById('cn-preview').textContent=''}
   S.manual.forEach(function(m){if(m.amount>0)rows.push({type:'직접입력',cls:'bMan',vendor:m.label||'(항목명 없음)',amount:m.amount,note:'수동 입력'})});
 
   if(!rows.length){document.getElementById('pur-sum-card').style.display='none';return}
   document.getElementById('pur-sum-card').style.display='block';
   var total=rows.reduce(function(s,r){return s+r.amount},0);
-  var html=rows.map(function(r){return'<tr><td><span class="b '+r.cls+'">'+r.type+'</span></td><td>'+r.vendor+'</td><td class="r">'+won(r.amount)+'</td><td style="font-size:11px;color:var(--mu)">'+r.note+'</td></tr>'}).join('');
-  html+='<tr class="tr-tot"><td colspan="2">합계</td><td class="r">'+won(total)+'</td><td></td></tr>';
+  var html=rows.map(function(r){
+    if(r.isCN){
+      // 중국 인보이스 — 날짜 / USD / KRW 컬럼
+      var noLabel=r.invNo?'<div style="color:var(--hi);font-size:10px;margin-top:2px">'+r.invNo+'</div>':'';
+      var dateTd=r.invDate
+        ?'<td style="font-size:12px;color:var(--tx)">'+r.invDate+noLabel+'</td>'
+        :'<td style="font-size:12px;color:var(--hi)">—'+noLabel+'</td>';
+      return'<tr>'
+        +'<td><span class="b '+r.cls+'">'+r.type+'</span></td>'
+        +'<td style="font-size:13px">'+r.vendor+'</td>'
+        +dateTd
+        +'<td class="r" style="color:var(--mu);font-size:12px">USD '+r.usd.toLocaleString()+'</td>'
+        +'<td class="r"><b>'+won(r.amount)+'</b></td>'
+        +'</tr>';
+    }
+    return'<tr>'
+      +'<td><span class="b '+r.cls+'">'+r.type+'</span></td>'
+      +'<td>'+r.vendor+'</td>'
+      +'<td style="color:var(--hi);font-size:12px">—</td>'
+      +'<td class="r" style="color:var(--mu);font-size:12px">—</td>'
+      +'<td class="r">'+won(r.amount)+'</td>'
+      +'</tr>';
+  }).join('');
+  html+='<tr class="tr-tot"><td colspan="3">합계</td><td class="r" style="color:var(--mu);font-size:11px"></td><td class="r">'+won(total)+'</td></tr>';
   document.getElementById('tb-pur').innerHTML=html;
   document.getElementById('pur-sum-cnt').textContent=rows.length+'개 항목 · '+won(total);
 }
@@ -1046,16 +1236,93 @@ function renderPurchase(){
 // ─────────────────────────────────────────
 //  Fixed costs
 // ─────────────────────────────────────────
-function addFixed(){S.fixed.push({label:'',amount:0});renderFixed()}
+function addFixed(){S.fixed.push({label:'',amount:0});renderFixed();saveFixed();}
 function renderFixed(){
   var el=document.getElementById('fixed-list');
   el.innerHTML=S.fixed.map(function(f,i){
-    return'<div class="fc-grid"><input class="fci" placeholder="비용 항목 (예: 임직원 급여)" value="'+f.label+'" oninput="S.fixed['+i+'].label=this.value;saveFixed()"><input class="fci" type="number" placeholder="금액" value="'+(f.amount||'')+'" oninput="S.fixed['+i+'].amount=parseFloat(this.value)||0;updateFixedTotal();saveFixed()"><button class="fc-del" onclick="S.fixed.splice('+i+',1);renderFixed();saveFixed()">×</button></div>';
+    return'<div class="fc-grid"><input class="fci" placeholder="비용 항목 (예: 임직원 급여)" value="'+f.label+'" oninput="S.fixed['+i+'].label=this.value;saveFixed()"><input class="fci" type="number" placeholder="금액" value="'+(f.amount!=null&&f.amount!==''?f.amount:'')+'" oninput="S.fixed['+i+'].amount=parseFloat(this.value)||0;updateFixedTotal();saveFixed()"><button class="fc-del" onclick="S.fixed.splice('+i+',1);renderFixed();saveFixed()">×</button></div>';
   }).join('')||'<div style="font-size:12px;color:var(--hi);padding:4px 0">항목이 없습니다. 위 버튼으로 추가하세요</div>';
   updateFixedTotal();
 }
 function updateFixedTotal(){var t=S.fixed.reduce(function(s,f){return s+f.amount},0);document.getElementById('fixed-total').textContent=won(t)}
-function saveFixed(){localStorage.setItem('ek_fixed',JSON.stringify(S.fixed))}
+function saveFixed(){
+  localStorage.setItem('ek_fixed',JSON.stringify(S.fixed));
+  // Notion 토큰 있으면 자동 동기화
+  var nc=JSON.parse(localStorage.getItem('ek_notion')||'{}');
+  if(nc.t) syncFixedToNotion(nc.t);
+}
+
+async function syncFixedToNotion(token){
+  if(!token||!S.fixed.length) return;
+  try{
+    // 기존 항목 모두 삭제 후 재등록 (간단한 덮어쓰기 방식)
+    // 1. 기존 페이지 ID 목록 조회
+    var qResp=await fetch('https://api.notion.com/v1/databases/'+NOTION_FIXED_DB+'/query',{
+      method:'POST',
+      headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json','Notion-Version':'2022-06-28'},
+      body:JSON.stringify({page_size:100})
+    });
+    if(!qResp.ok) return;
+    var qData=await qResp.json();
+    // 2. 기존 페이지 아카이브 (삭제)
+    var delPromises=(qData.results||[]).map(function(p){
+      return fetch('https://api.notion.com/v1/pages/'+p.id,{
+        method:'PATCH',
+        headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json','Notion-Version':'2022-06-28'},
+        body:JSON.stringify({archived:true})
+      });
+    });
+    await Promise.all(delPromises);
+    // 3. 새 항목 등록
+    var addPromises=S.fixed.map(function(f,i){
+      return fetch('https://api.notion.com/v1/pages',{
+        method:'POST',
+        headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json','Notion-Version':'2022-06-28'},
+        body:JSON.stringify({
+          parent:{database_id:NOTION_FIXED_DB},
+          properties:{
+            '항목명':{title:[{text:{content:f.label||''}}]},
+            '금액':  {number:Math.round(f.amount)||0},
+            '순서':  {number:i},
+            '사용여부':{checkbox:true}
+          }
+        })
+      });
+    });
+    await Promise.all(addPromises);
+    document.getElementById('notion-sync-status').textContent='✅ 고정비 Notion 동기화 완료';
+  }catch(e){
+    console.warn('고정비 Notion 동기화 실패:', e.message);
+  }
+}
+
+async function loadFixedFromNotion(token){
+  if(!token) return false;
+  try{
+    var resp=await fetch('https://api.notion.com/v1/databases/'+NOTION_FIXED_DB+'/query',{
+      method:'POST',
+      headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json','Notion-Version':'2022-06-28'},
+      body:JSON.stringify({page_size:100,sorts:[{property:'순서',direction:'ascending'}]})
+    });
+    if(!resp.ok) return false;
+    var data=await resp.json();
+    var pages=(data.results||[]).filter(function(p){return !p.archived;});
+    if(!pages.length) return false;
+    S.fixed=pages.map(function(p){
+      var props=p.properties;
+      var label=props['항목명']&&props['항목명'].title&&props['항목명'].title[0]
+        ?props['항목명'].title[0].plain_text:'';
+      var amount=props['금액']&&props['금액'].number!=null?props['금액'].number:0;
+      return {label:label, amount:amount};
+    });
+    localStorage.setItem('ek_fixed',JSON.stringify(S.fixed));
+    renderFixed();
+    return true;
+  }catch(e){
+    console.warn('고정비 Notion 로드 실패:', e.message);
+    return false;
+  }
+}
 
 // ─────────────────────────────────────────
 //  PnL helpers
@@ -1290,30 +1557,107 @@ function renderInvArea(){
   else document.getElementById('inv-preview').style.display='none';
 }
 
-function selCust(c){ S.selCust=c; S_as=[]; renderInvArea(); }
+function selCust(c){ S.selCust=c; S_as=[]; invEditData={}; renderInvArea(); }
 
-function invRows(items, offset){
+function invRows(items, offset, secKey){
   return items.map(function(it,idx){
-    var sup=Math.round(it.amount||((it.qty||0)*(it.price||0)));
-    var vat=Math.round(sup*0.1);
-    return'<tr>'
-      +'<td style="color:var(--mu);font-size:12px">'+(offset+idx+1)+'</td>'
+    var qty   = it.editQty   !== undefined ? it.editQty   : (it.qty  ||0);
+    var price = it.editPrice !== undefined ? it.editPrice : (it.price||0);
+    var sup   = Math.round(qty * price);
+    var vat   = Math.round(sup * 0.1);
+    var gi    = offset + idx;
+    return '<tr id="inv-row-'+secKey+'-'+gi+'">'
+      +'<td style="color:var(--mu);font-size:12px">'+(gi+1)+'</td>'
       +'<td>'+it.prod+'</td>'
       +'<td style="font-size:11px;color:var(--mu)">'+it.pcode+'</td>'
-      +'<td class="r">'+Math.round(it.qty||0)+'</td>'
-      +'<td class="r">'+won(it.price||0)+'</td>'
-      +'<td class="r"><b>'+won(sup)+'</b></td>'
-      +'<td class="r">'+won(vat)+'</td>'
-      +'<td class="r"><b>'+won(sup+vat)+'</b></td>'
+      +'<td class="r"><input type="number" value="'+qty+'" min="0"'
+        +' style="width:58px;border:1px solid var(--bd2);border-radius:5px;padding:2px 4px;text-align:right;font-size:13px;font-family:inherit"'
+        +' onchange="updateInvRow(\''+secKey+'\','+gi+',\'qty\',+this.value)"></td>'
+      +'<td class="r"><input type="number" value="'+price+'" min="0"'
+        +' style="width:78px;border:1px solid var(--bd2);border-radius:5px;padding:2px 4px;text-align:right;font-size:13px;font-family:inherit"'
+        +' onchange="updateInvRow(\''+secKey+'\','+gi+',\'price\',+this.value)"></td>'
+      +'<td class="r" id="inv-sup-'+secKey+'-'+gi+'"><b>'+won(sup)+'</b></td>'
+      +'<td class="r" id="inv-vat-'+secKey+'-'+gi+'">'+won(vat)+'</td>'
+      +'<td class="r" id="inv-tot-'+secKey+'-'+gi+'"><b>'+won(sup+vat)+'</b></td>'
+      +'<td><input type="text" value="'+(it.note||'')+'" placeholder="비고"'
+        +' style="width:86px;border:1px solid var(--bd2);border-radius:5px;padding:2px 5px;font-size:12px;font-family:inherit"'
+        +' oninput="updateInvNote(\''+secKey+'\','+gi+',this.value)"></td>'
       +'</tr>';
   }).join('');
+}
+
+function updateInvRow(secKey, gi, field, val){
+  var sec = invEditData[secKey];
+  if(!sec||sec[gi]===undefined) return;
+  if(field==='qty')   sec[gi].editQty   = val;
+  if(field==='price') sec[gi].editPrice = val;
+  var qty   = sec[gi].editQty   !== undefined ? sec[gi].editQty   : (sec[gi].qty  ||0);
+  var price = sec[gi].editPrice !== undefined ? sec[gi].editPrice : (sec[gi].price||0);
+  var sup = Math.round(qty * price);
+  var vat = Math.round(sup * 0.1);
+  var supEl = document.getElementById('inv-sup-'+secKey+'-'+gi);
+  var vatEl = document.getElementById('inv-vat-'+secKey+'-'+gi);
+  var totEl = document.getElementById('inv-tot-'+secKey+'-'+gi);
+  if(supEl) supEl.innerHTML = '<b>'+won(sup)+'</b>';
+  if(vatEl) vatEl.textContent = won(vat);
+  if(totEl) totEl.innerHTML = '<b>'+won(sup+vat)+'</b>';
+  updateInvTotals();
+}
+
+function updateInvNote(secKey, gi, val){
+  var sec = invEditData[secKey];
+  if(sec&&sec[gi]!==undefined) sec[gi].note = val;
+}
+
+var invEditData = {};
+
+function updateInvTotals(){
+  var totalSup = 0;
+  ['delivery','sample','dev'].forEach(function(sk){
+    var items = invEditData[sk]||[];
+    items.forEach(function(it){
+      var q = it.editQty   !== undefined ? it.editQty   : (it.qty  ||0);
+      var p = it.editPrice !== undefined ? it.editPrice : (it.price||0);
+      totalSup += Math.round(q*p);
+      var subEl = document.getElementById('inv-sub-'+sk);
+      if(subEl) subEl.dataset.raw = items.reduce(function(s,i){
+        var qq=i.editQty!==undefined?i.editQty:(i.qty||0);
+        var pp=i.editPrice!==undefined?i.editPrice:(i.price||0);
+        return s+Math.round(qq*pp);
+      },0);
+    });
+  });
+  totalSup += S_as.reduce(function(s,m){return s+(m.qty||0)*(m.price||0);},0);
+  totalSup = Math.round(totalSup);
+  var totalVat = Math.round(totalSup*0.1);
+  ['delivery','sample','dev'].forEach(function(sk){
+    var items = invEditData[sk]||[];
+    var secSup = items.reduce(function(s,it){
+      var q=it.editQty!==undefined?it.editQty:(it.qty||0);
+      var p=it.editPrice!==undefined?it.editPrice:(it.price||0);
+      return s+Math.round(q*p);
+    },0);
+    var subEl = document.getElementById('inv-sub-'+sk);
+    if(subEl){ subEl.textContent=won(secSup); subEl.dataset.raw=secSup; }
+  });
+  var supEl=document.getElementById('inv-total-supply');
+  var vatEl=document.getElementById('inv-total-vat');
+  var totEl=document.getElementById('inv-total-grand');
+  if(supEl) supEl.textContent=won(totalSup);
+  if(vatEl) vatEl.textContent=won(totalVat);
+  if(totEl) totEl.textContent=won(totalSup+totalVat);
 }
 
 function setSection(secId, tbId, subId, items, offset){
   var sec=document.getElementById(secId);
   if(!items||!items.length){ sec.style.display='none'; return; }
   sec.style.display='block';
-  document.getElementById(tbId).innerHTML=invRows(items,offset);
+  var secKey=subId.replace('inv-sub-','');
+  if(!invEditData[secKey]||invEditData[secKey+'_cust']!==S.selCust){
+    invEditData[secKey]=items.map(function(it){return Object.assign({},it);});
+    invEditData[secKey+'_cust']=S.selCust;
+  }
+  document.getElementById(tbId).innerHTML=invRows(invEditData[secKey],offset,secKey);
   var t=items.reduce(function(s,i){return s+Math.round(i.amount||((i.qty||0)*(i.price||0)));},0);
   var sub=document.getElementById(subId);
   sub.textContent=won(t);
@@ -1368,67 +1712,77 @@ function exportInv(mode){
 
   var grandSupply=0, rowNum=0;
 
-  function pushItems(sectionTitle, items){
+  function pushItems(sectionTitle, items, secKey){
     if(!items||!items.length) return;
-    aoa.push([sectionTitle,null,null,null,null,null,null,null]);
-    aoa.push(['No.','품목명','품목코드','수량','단가','공급가액','부가세(10%)','합계']);
+    var editItems = invEditData[secKey] || items;
+    aoa.push([sectionTitle,null,null,null,null,null,null,null,null]);
+    aoa.push(['No.','품목명','품목코드','수량','단가','공급가액','부가세(10%)','합계','비고']);
     var secTotal=0;
-    items.forEach(function(it){
+    editItems.forEach(function(it){
       rowNum++;
-      var sup=Math.round(it.amount||((it.qty||0)*(it.price||0)));
+      var qty   = it.editQty   !== undefined ? it.editQty   : (it.qty  ||0);
+      var price = it.editPrice !== undefined ? it.editPrice : (it.price||0);
+      var sup=Math.round(qty*price);
       var vat=Math.round(sup*0.1);
       secTotal+=sup;
-      aoa.push([rowNum, it.prod, it.pcode, Math.round(it.qty||0), Math.round(it.price||0), sup, vat, sup+vat]);
+      aoa.push([rowNum, it.prod, it.pcode, Math.round(qty), Math.round(price), sup, vat, sup+vat, it.note||'']);
     });
     var sv=Math.round(secTotal*0.1);
-    aoa.push([null,null,null,null,'소  계', secTotal, sv, secTotal+sv]);
-    aoa.push([null,null,null,null,null,null,null,null]);
+    aoa.push([null,null,null,null,'소  계', secTotal, sv, secTotal+sv, null]);
+    aoa.push([null,null,null,null,null,null,null,null,null]);
     grandSupply+=secTotal;
   }
 
-  if(dlv.length)  pushItems('① 납품 내역', dlv);
-  if(smp.length)  pushItems('② 샘플 비용', smp);
-  if(dev.length)  pushItems('③ 개발비',    dev);
+  if(dlv.length)  pushItems('① 납품 내역', dlv, 'delivery');
+  if(smp.length)  pushItems('② 샘플 비용', smp, 'sample');
+  if(dev.length)  pushItems('③ 개발비',    dev, 'dev');
 
   if(S_as.length){
-    aoa.push(['④ AS 비용',null,null,null,null,null,null,null]);
-    aoa.push(['No.','항목명',null,'수량','단가','공급가액','부가세(10%)','합계']);
+    aoa.push(['④ AS 비용',null,null,null,null,null,null,null,null]);
+    aoa.push(['No.','항목명',null,'수량','단가','공급가액','부가세(10%)','합계','비고']);
     var asTotal=0;
     S_as.forEach(function(m){
       rowNum++;
       var sup=Math.round((m.qty||0)*(m.price||0));
       var vat=Math.round(sup*0.1);
       asTotal+=sup;
-      aoa.push([rowNum, m.label, null, m.qty||0, m.price||0, sup, vat, sup+vat]);
+      aoa.push([rowNum, m.label, null, m.qty||0, m.price||0, sup, vat, sup+vat, '']);
     });
     var av=Math.round(asTotal*0.1);
-    aoa.push([null,null,null,null,'소  계', asTotal, av, asTotal+av]);
-    aoa.push([null,null,null,null,null,null,null,null]);
+    aoa.push([null,null,null,null,'소  계', asTotal, av, asTotal+av, null]);
+    aoa.push([null,null,null,null,null,null,null,null,null]);
     grandSupply+=asTotal;
   }
 
   // 최종 합계
   var grandVat=Math.round(grandSupply*0.1);
-  aoa.push([null,null,null,null,'합   계', grandSupply, grandVat, grandSupply+grandVat]);
+  aoa.push([null,null,null,null,'합   계', grandSupply, grandVat, grandSupply+grandVat, null]);
 
   // XLSX 생성
   var wb2=XLSX.utils.book_new();
   var ws=XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols']=[{wch:5},{wch:40},{wch:16},{wch:7},{wch:14},{wch:14},{wch:13},{wch:16}];
+  ws['!cols']=[{wch:5},{wch:36},{wch:15},{wch:7},{wch:12},{wch:13},{wch:12},{wch:14},{wch:16}];
 
-  // 타이틀 병합
+  // 타이틀 병합 (9컬럼 기준)
   ws['!merges']=[
-    {s:{r:0,c:0},e:{r:0,c:7}},
-    {s:{r:2,c:0},e:{r:2,c:3}},{s:{r:2,c:4},e:{r:2,c:7}},
-    {s:{r:3,c:0},e:{r:3,c:3}},{s:{r:3,c:4},e:{r:3,c:7}},
-    {s:{r:4,c:0},e:{r:4,c:7}},
-    {s:{r:5,c:0},e:{r:5,c:7}},
-    {s:{r:6,c:0},e:{r:6,c:7}},
+    {s:{r:0,c:0},e:{r:0,c:8}},
+    {s:{r:2,c:0},e:{r:2,c:3}},{s:{r:2,c:4},e:{r:2,c:8}},
+    {s:{r:3,c:0},e:{r:3,c:3}},{s:{r:3,c:4},e:{r:3,c:8}},
+    {s:{r:4,c:0},e:{r:4,c:8}},
+    {s:{r:5,c:0},e:{r:5,c:8}},
+    {s:{r:6,c:0},e:{r:6,c:8}},
   ];
 
   XLSX.utils.book_append_sheet(wb2,ws,'거래명세서');
   XLSX.writeFile(wb2,'거래명세서_'+cust.replace(/[\\/:\*\?"<>\|]/g,'_')+'_'+period+'.xlsx');
   toast('Excel 다운로드 완료','ok');
+  // ── 청구관리 자동 등록 ──
+  // editData 반영한 실제 항목으로 합산
+  var allEditItems = []
+    .concat(invEditData['delivery']||dlv)
+    .concat(invEditData['sample']  ||smp)
+    .concat(invEditData['dev']     ||dev);
+  registerBilling(cust, period, allEditItems);
 }
 
 // ── 인쇄 / PDF 저장 ──────────────────────────
@@ -1556,6 +1910,27 @@ function printInv(){
 // ─────────────────────────────────────────
 //  Save period
 // ─────────────────────────────────────────
+// ─────────────────────────────────────────
+//  Auto Sync (debounced)
+// ─────────────────────────────────────────
+var _autoSyncTimer = null;
+function autoSyncNotion(){
+  // 300ms 디바운스 — 여러 파일 연속 업로드 시 마지막 것만 저장
+  clearTimeout(_autoSyncTimer);
+  _autoSyncTimer = setTimeout(function(){
+    var nc=JSON.parse(localStorage.getItem('ek_notion')||'{}');
+    if(!nc.t) return; // 토큰 없으면 스킵
+    var hasSales = S.sales&&S.sales.length;
+    var hasSample = S.sample&&S.sample.length;
+    var hasEk = S.ek&&S.ek.length;
+    var hasExp = S.exp&&S.exp.length;
+    var hasCN = S.cnList&&S.cnList.length;
+    // 최소 매출 데이터가 있어야 저장
+    if(!hasSales&&!hasSample) return;
+    savePeriod(); // 로컬 + Notion 동시 저장
+  }, 800);
+}
+
 async function savePeriod(){
   var period=document.getElementById('g-period').value;
   if(!period){toast('기간을 선택해주세요','err');return;}
@@ -1586,7 +1961,7 @@ async function savePeriod(){
 
   // ── 2. Notion 자동 저장 ───────────────────────
   var nc=JSON.parse(localStorage.getItem('ek_notion')||'{}');
-  var dbId=document.getElementById('notion-dbid').value.trim()||'33485ab8032180a88f6f000b4013659e';
+  var dbId=document.getElementById('notion-dbid').value.trim()||NOTION_PNL_DB;
   var token=nc.t||(document.getElementById('notion-token').value.trim());
 
   if(token){
@@ -1720,16 +2095,24 @@ function renderDashMonth(){
 
   // ── KPI 3개: 월매출 / 월비용 / 영업이익 ──
   var kpiHtml = '';
+  // 미수금 계산 (청구관리에서)
+  loadBilling();
+  var monthKey = yr+'-'+String(mo).padStart(2,'0');
+  var unpaidList = S.billing.filter(function(b){return b.period===monthKey&&!b.paid;});
+  var unpaidAmt  = unpaidList.reduce(function(s,b){return s+b.amount;},0);
+
   if(curRev !== null){
     kpiHtml +=
       mkKpi('월 매출', won(curRev), mo+'월'+(db[key]?'':' (미저장)'), '') +
       mkKpi('월 비용', won(curRev !== null ? (db[key]?db[key].cogs:liveCogs) : 0), '매입원가+고정비', '') +
-      mkKpi('월 영업이익', won(curProfit), curProfit>=0?'흑자':'적자', curProfit>=0?'pos':'neg');
+      mkKpi('월 영업이익', won(curProfit), curProfit>=0?'흑자':'적자', curProfit>=0?'pos':'neg') +
+      mkKpi('미수금', unpaidAmt>0?won(unpaidAmt):'없음', unpaidList.length+'건 미입금', unpaidAmt>0?'neg':'');
   } else {
     kpiHtml +=
       mkKpi('월 매출',    '데이터 없음', mo+'월 미저장', '') +
       mkKpi('월 비용',    '—', '', '') +
-      mkKpi('월 영업이익','—', '', '');
+      mkKpi('월 영업이익','—', '', '') +
+      mkKpi('미수금', unpaidAmt>0?won(unpaidAmt):'없음', unpaidList.length+'건 미입금', unpaidAmt>0?'neg':'');
   }
   document.getElementById('dash-kpi').innerHTML = kpiHtml;
 
@@ -2031,11 +2414,184 @@ function exportHistXlsx(){
 }
 
 // ─────────────────────────────────────────
+//  Billing (청구 관리)
+// ─────────────────────────────────────────
+function registerBilling(cust, period, items){
+  // editQty/editPrice 반영한 실제 금액으로 계산
+  var totalSup = items.reduce(function(s,i){
+    var q = i.editQty   !== undefined ? i.editQty   : (i.qty  ||0);
+    var p = i.editPrice !== undefined ? i.editPrice : (i.price||0);
+    return s + Math.round(q*p);
+  },0);
+  var asAmt = S_as.reduce(function(s,m){return s+(m.qty||0)*(m.price||0);},0);
+  totalSup += Math.round(asAmt);
+  var totalAmt = totalSup + Math.round(totalSup*0.1);
+
+  var key = period+'_'+cust;
+  var existing = S.billing.findIndex(function(b){return b.key===key;});
+  var entry = {
+    key:      key,
+    period:   period,
+    cust:     cust,
+    supply:   totalSup,
+    amount:   totalAmt,
+    taxInv:   existing>=0 ? S.billing[existing].taxInv : false,
+    paid:     existing>=0 ? S.billing[existing].paid   : false,
+    paidDate: existing>=0 ? S.billing[existing].paidDate : '',
+    issuedAt: new Date().toISOString()
+  };
+  if(existing>=0) S.billing[existing] = entry;
+  else            S.billing.unshift(entry);
+
+  saveBilling();
+  renderBilling();
+  toast('💰 청구 관리에 등록됨: '+cust+' ('+period+')','ok');
+}
+
+function saveBilling(){
+  localStorage.setItem('ek_billing', JSON.stringify(S.billing));
+}
+
+function loadBilling(){
+  try{ S.billing = JSON.parse(localStorage.getItem('ek_billing')||'[]') || []; }
+  catch(e){ S.billing = []; }
+}
+
+function renderBilling(){
+  loadBilling();
+  var list = S.billing;
+  var empty = document.getElementById('billing-empty');
+  var wrap  = document.getElementById('billing-table-wrap');
+
+  // KPI 카드
+  var totalAmt  = list.reduce(function(s,b){return s+b.amount;},0);
+  var unpaidAmt = list.filter(function(b){return !b.paid;}).reduce(function(s,b){return s+b.amount;},0);
+  var noTaxCnt  = list.filter(function(b){return !b.taxInv;}).length;
+  var paidAmt   = list.filter(function(b){return b.paid;}).reduce(function(s,b){return s+b.amount;},0);
+  document.getElementById('billing-kpi').innerHTML =
+    mkKpi('총 청구액',   won(totalAmt),  list.length+'건', '') +
+    mkKpi('미수금',      won(unpaidAmt), '미입금 '+list.filter(function(b){return !b.paid;}).length+'건', unpaidAmt>0?'neg':'') +
+    mkKpi('입금 완료',   won(paidAmt),   list.filter(function(b){return b.paid;}).length+'건', paidAmt>0?'pos':'') +
+    mkKpi('계산서 미발행', noTaxCnt+'건', '발행 필요', noTaxCnt>0?'neg':'');
+  document.getElementById('billing-cnt').textContent = list.length+'건';
+
+  if(!list.length){
+    empty.style.display='block'; wrap.style.display='none'; return;
+  }
+  empty.style.display='none'; wrap.style.display='block';
+
+  var html = list.map(function(b,i){
+    var taxBadge = b.taxInv
+      ? '<span class="b bgood" style="font-size:10px">발행완료</span>'
+      : '<span class="b bnone" style="font-size:10px">미발행</span>';
+    var paidBadge = b.paid
+      ? '<span class="b bgood" style="font-size:10px">입금완료</span>'
+      : '<span class="b bWarn" style="font-size:10px">미입금</span>';
+    var paidDateCell = b.paid
+      ? '<input type="date" value="'+b.paidDate+'" style="border:none;background:transparent;font-size:12px;color:var(--tx);font-family:inherit" onchange="setBillingPaidDate('+i+',this.value)">'
+      : '<span style="color:var(--hi);font-size:12px">—</span>';
+    var rowCls = (!b.paid) ? ' style="background:var(--rdbg)"' : '';
+    return '<tr'+rowCls+'>'
+      +'<td style="font-size:12px;font-weight:600">'+b.period+'</td>'
+      +'<td>'+badge(b.cust)+'</td>'
+      +'<td class="r" style="font-weight:700">'+won(b.amount)+'</td>'
+      +'<td class="r" style="font-size:12px;color:var(--mu)">'+won(b.supply)+'</td>'
+      +'<td style="text-align:center;cursor:pointer" onclick="toggleBilling('+i+',\'taxInv\')">'+taxBadge+'</td>'
+      +'<td style="text-align:center;cursor:pointer" onclick="toggleBilling('+i+',\'paid\')">'+paidBadge+'</td>'
+      +'<td>'+paidDateCell+'</td>'
+      +'<td><button class="btn btn-sm" style="color:var(--rd)" onclick="deleteBilling('+i+')">삭제</button></td>'
+      +'</tr>';
+  }).join('');
+  document.getElementById('tb-billing').innerHTML = html;
+}
+
+function toggleBilling(i, field){
+  S.billing[i][field] = !S.billing[i][field];
+  if(field==='paid' && S.billing[i].paid && !S.billing[i].paidDate)
+    S.billing[i].paidDate = new Date().toISOString().slice(0,10);
+  saveBilling();
+  renderBilling();
+  // Notion 자동 동기화
+  var nc=JSON.parse(localStorage.getItem('ek_notion')||'{}');
+  if(nc.t) syncBillingToNotion();
+}
+
+function setBillingPaidDate(i, val){
+  S.billing[i].paidDate = val;
+  saveBilling();
+  var nc=JSON.parse(localStorage.getItem('ek_notion')||'{}');
+  if(nc.t) syncBillingToNotion();
+}
+
+function deleteBilling(i){
+  if(!confirm(S.billing[i].cust+' 청구 항목을 삭제할까요?')) return;
+  S.billing.splice(i,1);
+  saveBilling(); renderBilling();
+}
+
+function clearBilling(){
+  if(!confirm('모든 청구 데이터를 삭제할까요?')) return;
+  S.billing=[]; saveBilling(); renderBilling(); toast('청구 데이터 초기화','ok');
+}
+
+async function syncBillingToNotion(){
+  var nc=JSON.parse(localStorage.getItem('ek_notion')||'{}');
+  if(!nc.t){ toast('Notion 토큰을 먼저 설정해주세요','err'); return; }
+  if(!S.billing.length){ toast('청구 데이터가 없습니다','err'); return; }
+  var BILLING_DB = NOTION_BILLING_DB;
+  try{
+    // 기존 삭제 후 재등록
+    var qR=await fetch('https://api.notion.com/v1/databases/'+BILLING_DB+'/query',{
+      method:'POST',
+      headers:{'Authorization':'Bearer '+nc.t,'Content-Type':'application/json','Notion-Version':'2022-06-28'},
+      body:JSON.stringify({page_size:100})
+    });
+    if(qR.ok){
+      var qD=await qR.json();
+      await Promise.all((qD.results||[]).map(function(p){
+        return fetch('https://api.notion.com/v1/pages/'+p.id,{
+          method:'PATCH',
+          headers:{'Authorization':'Bearer '+nc.t,'Content-Type':'application/json','Notion-Version':'2022-06-28'},
+          body:JSON.stringify({archived:true})
+        });
+      }));
+    }
+    // 새 데이터 등록
+    await Promise.all(S.billing.map(function(b){
+      var props = {
+        '거래처': {title:[{text:{content:b.cust}}]},
+        '기간':   {rich_text:[{text:{content:b.period}}]},
+        '청구금액':{number:b.amount},
+        '공급가액':{number:b.supply},
+        '계산서발행':{checkbox:!!b.taxInv},
+        '입금완료': {checkbox:!!b.paid}
+      };
+      if(b.paidDate){ props['date:입금일:start']=b.paidDate; props['date:입금일:is_datetime']=0; }
+      return fetch('https://api.notion.com/v1/pages',{
+        method:'POST',
+        headers:{'Authorization':'Bearer '+nc.t,'Content-Type':'application/json','Notion-Version':'2022-06-28'},
+        body:JSON.stringify({parent:{database_id:BILLING_DB}, properties:props})
+      });
+    }));
+    toast('✅ 청구관리 Notion 동기화 완료','ok');
+  }catch(e){ toast('Notion 오류: '+e.message,'err'); }
+}
+
+// ─────────────────────────────────────────
 //  Notion
 // ─────────────────────────────────────────
 function saveNotionCfg(){
-  localStorage.setItem('ek_notion',JSON.stringify({t:document.getElementById('notion-token').value.trim(),d:document.getElementById('notion-dbid').value.trim()}));
+  var token=document.getElementById('notion-token').value.trim();
+  var dbId=document.getElementById('notion-dbid').value.trim();
+  localStorage.setItem('ek_notion',JSON.stringify({t:token,d:dbId}));
   toast('Notion 설정 저장','ok');
+  // 설정 저장 즉시 고정비 Notion에서 로드 시도
+  if(token){
+    loadFixedFromNotion(token).then(function(ok){
+      if(ok) toast('✅ Notion에서 고정비를 불러왔습니다','ok');
+      else   syncFixedToNotion(token); // 없으면 현재 로컬 값 업로드
+    });
+  }
 }
 
 async function notionSave(){
