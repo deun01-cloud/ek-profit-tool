@@ -170,11 +170,9 @@ tbody tr:hover td{background:#fafafa}
 <!-- Tabs -->
 <div class="tabs">
   <button class="tab on"  onclick="go('sales',this)">📦 매출 입력</button>
-  <button class="tab"     onclick="go('purchase',this)">🧾 매입 원가</button>
-  <button class="tab"     onclick="go('fixed',this)">🏢 고정비</button>
+  <button class="tab"     onclick="go('purchase',this)">🧾 매입 &amp; 고정비</button>
   <button class="tab"     onclick="go('pnl',this)">📊 손익 계산</button>
-  <button class="tab"     onclick="go('inv',this)">🖨️ 거래명세서</button>
-  <button class="tab"     onclick="go('billing',this)">💰 청구 관리</button>
+  <button class="tab"     onclick="go('inv',this)">🖨️ 거래명세서 &amp; 청구</button>
   <button class="tab"     onclick="go('dash',this)">📈 대시보드</button>
 </div>
 
@@ -340,20 +338,11 @@ tbody tr:hover td{background:#fafafa}
       <tbody id="tb-pur"></tbody>
     </table>
   </div>
-</div>
 
-<!-- ══════════════════════════════════════
-     TAB 3: 고정비
-══════════════════════════════════════ -->
-<div class="pg" id="pg-fixed">
-  <div class="note ac">
-    <span>💡</span>
-    <span>매달 고정으로 발생하는 비용을 입력해주세요. 손익 계산 시 자동 반영되며, <b>브라우저에 자동 저장</b>됩니다.</span>
-  </div>
-
-  <div class="card">
+  <!-- 고정비 (매입원가 탭에 통합) -->
+  <div class="card" style="margin-top:14px">
     <div class="card-h">
-      <div class="card-t">고정비 항목</div>
+      <div class="card-t">🏢 고정비</div>
       <button class="btn btn-sm" onclick="addFixed()">+ 항목 추가</button>
     </div>
     <div style="padding:14px 16px">
@@ -369,8 +358,10 @@ tbody tr:hover td{background:#fafafa}
       <span style="font-size:20px;font-weight:700;color:var(--rd)" id="fixed-total">0원</span>
     </div>
   </div>
-  <div style="font-size:11px;color:var(--hi);margin-top:4px">* 한 번 입력하면 삭제하지 않는 한 영구 저장됩니다. 다른 기기·브라우저에서는 다시 입력이 필요합니다.</div>
+  <div style="font-size:11px;color:var(--hi);margin-top:4px">* 고정비는 삭제하지 않는 한 Notion에 영구 저장됩니다.</div>
 </div>
+
+
 
 <!-- ══════════════════════════════════════
      TAB 4: 손익 계산
@@ -531,13 +522,13 @@ tbody tr:hover td{background:#fafafa}
       </div>
     </div>
   </div>
-</div>
 
-<!-- ══════════════════════════════════════
-     TAB: 청구 관리
-══════════════════════════════════════ -->
-<div class="pg" id="pg-billing">
-
+  <!-- 청구 관리 (거래명세서 탭 통합) -->
+  <div style="margin-top:24px;border-top:2px solid var(--bd);padding-top:20px">
+    <div style="font-size:15px;font-weight:700;margin-bottom:16px;display:flex;align-items:center;gap:8px">
+      <span>💰 청구 관리</span>
+      <span style="font-size:12px;font-weight:400;color:var(--mu)">거래명세서 발행 시 자동 등록</span>
+    </div>
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
     <div>
       <div style="font-size:13px;color:var(--mu)">거래명세서 발행 시 자동 등록됩니다. 입금 및 계산서 발행 여부를 체크하세요.</div>
@@ -581,6 +572,8 @@ tbody tr:hover td{background:#fafafa}
     </div>
   </div>
 
+
+  </div>
 </div>
 
 <!-- ══════════════════════════════════════
@@ -790,13 +783,14 @@ var S = {
 //  Tab
 // ─────────────────────────────────────────
 function go(id,el){
+  if(id==='billing') id='inv';
   document.querySelectorAll('.pg').forEach(function(p){p.classList.remove('on')});
   document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('on')});
   document.getElementById('pg-'+id).classList.add('on');
   el.classList.add('on');
   if(id==='dash'){ document.getElementById('dash-view-month').style.display='block'; document.getElementById('dash-view-year').style.display='none'; renderDash(); }
-  if(id==='billing') renderBilling();
-  if(id==='inv')  renderInvArea();
+  if(id==='billing'||id==='inv') renderBilling();
+  if(id==='inv') renderInvArea();
   if(id==='pnl')  calcPnL();
 }
 
@@ -1344,12 +1338,16 @@ function totalSales(){
   return totalSalesDelivery() + totalSampleRev() + totalDevRev();
 }
 function totalCogs(){
-  // 원가 = 지출내역 + EK정산 + 중국인보이스 + 직접입력
+  // 원가 = 지출내역 + EK정산 + 중국인보이스(복수) + 직접입력
   var t = 0;
   var rate = parseFloat(document.getElementById('usd-rate').value)||1350;
   if(S.ek)  t += S.ek.reduce(function(s,i){return s+i.supply},0);
   if(S.exp) t += S.exp.reduce(function(s,i){return s+i.amount},0);
-  if(S.cn)  t += S.cn.usd * rate;
+  // cnList 우선 — 복수 인보이스 합산
+  if(S.cnList&&S.cnList.length)
+    S.cnList.forEach(function(inv){t+=inv.usd*rate;});
+  else if(S.cn)
+    t+=S.cn.usd*rate;
   t += S.manual.reduce(function(s,m){return s+m.amount},0);
   return t;
 }
