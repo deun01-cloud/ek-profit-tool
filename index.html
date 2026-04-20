@@ -181,6 +181,17 @@ tbody tr:hover td{background:#fafafa}
 ══════════════════════════════════════ -->
 <div class="pg on" id="pg-sales">
 
+  <!-- 저장된 기간 데이터 요약 -->
+  <div id="saved-summary-card" style="display:none;margin-bottom:14px">
+    <div class="card" style="background:var(--acbg);border:1.5px solid var(--ac20,#e0e7ff)">
+      <div class="card-h" style="background:transparent">
+        <div class="card-t" style="color:var(--ac)">📂 <span id="saved-summary-period"></span> 저장 데이터 요약</div>
+        <span style="font-size:11px;color:var(--mu)">파일 업로드 시 최신 데이터로 갱신됩니다</span>
+      </div>
+      <div style="padding:12px 16px" id="saved-summary-body"></div>
+    </div>
+  </div>
+
   <!-- 두 파일 업로드 -->
   <div class="dz-row">
     <!-- 파일 1: 납품건 (출하지시서현황) -->
@@ -250,6 +261,19 @@ tbody tr:hover td{background:#fafafa}
       <thead><tr><th>거래처</th><th>품목명</th><th>품목코드</th><th class="r">수량</th><th class="r">단가</th><th class="r">공급가액</th><th>구분</th></tr></thead>
       <tbody id="tb-sample"></tbody>
     </table>
+  </div>
+
+  <!-- 저장된 기간 요약 -->
+  <div class="card" id="saved-period-card" style="display:none;margin-top:14px;border:1.5px solid var(--ac);background:var(--acbg)">
+    <div class="card-h">
+      <div class="card-t" style="color:var(--ac)">📂 <span id="saved-period-label">저장된 데이터</span></div>
+      <button class="btn btn-sm" onclick="document.getElementById('saved-period-card').style.display='none'">닫기</button>
+    </div>
+    <div style="padding:14px 16px">
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px" id="saved-period-kpi"></div>
+      <div style="font-size:12px;font-weight:700;color:var(--mu);margin-bottom:6px">거래처별 매출</div>
+      <div id="saved-period-by-cust" style="font-size:13px"></div>
+    </div>
   </div>
 
 </div>
@@ -766,14 +790,15 @@ var S = {
   } else {
     // 최초 실행 시 기본 항목 제공 (amount는 0 — 사용자가 직접 입력)
     S.fixed = [{label:'임직원 급여',amount:0},{label:'사무실 임대료',amount:0},{label:'통신비',amount:0}];
-    saveFixed(); // 최초에도 바로 저장
+    localStorage.setItem('ek_fixed', JSON.stringify(S.fixed)); // sync 없이 로컬만 저장
   }
+  _fixedLoading = true;
   renderFixed();
+  _fixedLoading = false;
   loadBilling();
-  var nc=JSON.parse(localStorage.getItem('ek_notion')||'{}');
-  if(nc.t) document.getElementById('notion-token').value=nc.t;
-  document.getElementById('notion-dbid').value=nc.d||'33485ab8032180a88f6f000b4013659e';
-  // Notion 토큰 있으면 고정비 자동 로드 (로컬보다 Notion 우선)
+  // 저장 데이터 요약 표시
+  renderSavedSummary(document.getElementById('g-period').value);
+  // Notion에서 고정비 로드 (로컬보다 Notion 우선, sync는 하지 않음)
   loadFixedFromNotion().then(function(ok){
     if(ok) document.getElementById('notion-sync-status').textContent='✅ Notion에서 고정비 불러왔습니다';
   });
@@ -804,8 +829,8 @@ var CM={
   '포에리':'po','파르테즈':'pa','파르테즈(PA)':'pa',
   '토우토우':'tt','토우토우(TT)':'tt'
 };
-function cc(n){if(!n)return'etc';var t=n.trim();if(CM[t])return CM[t];for(var k in CM){if(t.includes(k)||k.includes(t))return CM[k]}return'etc'}
-function badge(n){return'<span class="b b'+cc(n)+'">'+n+'</span>'}
+function cc(n){if(!n||typeof n!=='string')return'etc';var t=n.trim();if(CM[t])return CM[t];for(var k in CM){if(t.includes(k)||k.includes(t))return CM[k]}return'etc'}
+function badge(n){if(!n)return'<span class="b betc">—</span>';return'<span class="b b'+cc(n)+'">'+n+'</span>'}
 function won(n){if(n===null||n===undefined||isNaN(n)) return '—'; return Math.round(n).toLocaleString('ko-KR')+'원'}
 function pct(n){return(Math.round(n*10)/10)+'%'}
 
@@ -1230,10 +1255,16 @@ function renderPurchase(){
 //  Fixed costs
 // ─────────────────────────────────────────
 function addFixed(){S.fixed.push({label:'',amount:0});renderFixed();saveFixed();}
+var _fixedLoading = false; // 로드 중 sync 방지 플래그
+
 function renderFixed(){
   var el=document.getElementById('fixed-list');
   el.innerHTML=S.fixed.map(function(f,i){
-    return'<div class="fc-grid"><input class="fci" placeholder="비용 항목 (예: 임직원 급여)" value="'+f.label+'" oninput="S.fixed['+i+'].label=this.value;saveFixed()"><input class="fci" type="number" placeholder="금액" value="'+(f.amount!=null&&f.amount!==''?f.amount:'')+'" oninput="S.fixed['+i+'].amount=parseFloat(this.value)||0;updateFixedTotal();saveFixed()"><button class="fc-del" onclick="S.fixed.splice('+i+',1);renderFixed();saveFixed()">×</button></div>';
+    return'<div class="fc-grid">'
+      +'<input class="fci" placeholder="비용 항목 (예: 임직원 급여)" value="'+f.label+'" oninput="if(!_fixedLoading){S.fixed['+i+'].label=this.value;saveFixed()}">'
+      +'<input class="fci" type="number" placeholder="금액" value="'+(f.amount!=null&&f.amount!==''?f.amount:'')+'" oninput="if(!_fixedLoading){S.fixed['+i+'].amount=parseFloat(this.value)||0;updateFixedTotal();saveFixed()}">'
+      +'<button class="fc-del" onclick="S.fixed.splice('+i+',1);renderFixed();saveFixed()">×</button>'
+      +'</div>';
   }).join('')||'<div style="font-size:12px;color:var(--hi);padding:4px 0">항목이 없습니다. 위 버튼으로 추가하세요</div>';
   updateFixedTotal();
 }
@@ -1251,6 +1282,14 @@ async function syncFixedToNotion(){
   if(_fixedSyncing) return; // 이미 실행 중이면 스킵
   if(!S.fixed.length) return;
   _fixedSyncing = true;
+  // 저장 전 S.fixed 중복 제거
+  var seen2={};
+  S.fixed = S.fixed.filter(function(f){
+    var k=(f.label||'').trim()+'__'+f.amount;
+    if(seen2[k]) return false;
+    seen2[k]=true;
+    return true;
+  });
   try{
     // 1. 기존 페이지 ID 목록 조회
     var qResp=await fetch(NOTION_PROXY+'/databases/'+NOTION_FIXED_DB+'/query',{
@@ -1260,9 +1299,10 @@ async function syncFixedToNotion(){
     });
     if(!qResp.ok){ _fixedSyncing=false; return; }
     var qData=await qResp.json();
-    // 2. 기존 페이지 순차 아카이브 (병렬 X — Notion API rate limit 방지)
-    for(var i=0;i<(qData.results||[]).length;i++){
-      await fetch(NOTION_PROXY+'/pages/'+qData.results[i].id,{
+    // 2. 기존 페이지 순차 아카이브 (archived되지 않은 것만)
+    var toDelete=(qData.results||[]).filter(function(p){return !p.archived;});
+    for(var i=0;i<toDelete.length;i++){
+      await fetch(NOTION_PROXY+'/pages/'+toDelete[i].id,{
         method:'PATCH',
         headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'},
         body:JSON.stringify({archived:true})
@@ -1305,15 +1345,26 @@ async function loadFixedFromNotion(){
     var data=await resp.json();
     var pages=(data.results||[]).filter(function(p){return !p.archived;});
     if(!pages.length) return false;
-    S.fixed=pages.map(function(p){
+    // 항목명 없는 항목(중복 삭제된 항목) 제외 + 중복 제거
+    var seen={};
+    var items=[];
+    pages.forEach(function(p){
       var props=p.properties;
       var label=props['항목명']&&props['항목명'].title&&props['항목명'].title[0]
-        ?props['항목명'].title[0].plain_text:'';
+        ?props['항목명'].title[0].plain_text.trim():'';
       var amount=props['금액']&&props['금액'].number!=null?props['금액'].number:0;
-      return {label:label, amount:amount};
+      if(!label) return; // 항목명 없으면 스킵
+      var key=label+'__'+amount;
+      if(seen[key]) return; // 중복 스킵
+      seen[key]=true;
+      items.push({label:label, amount:amount});
     });
+    if(!items.length) return false;
+    S.fixed=items;
     localStorage.setItem('ek_fixed',JSON.stringify(S.fixed));
+    _fixedLoading = true;  // sync 방지
     renderFixed();
+    _fixedLoading = false;
     return true;
   }catch(e){
     console.warn('고정비 Notion 로드 실패:', e.message);
@@ -1955,26 +2006,65 @@ function autoSyncNotion(){
 // ─────────────────────────────────────────
 //  Period change — 월 변경 시 저장 데이터 표시
 // ─────────────────────────────────────────
+function renderSavedSummary(period){
+  var db  = JSON.parse(localStorage.getItem('ek_records')||'{}');
+  var rec = db[period];
+  var card = document.getElementById('saved-summary-card');
+  if(!rec){ card.style.display='none'; return; }
+
+  card.style.display='block';
+  document.getElementById('saved-summary-period').textContent = period;
+
+  var op   = rec.rev - rec.cogs - (rec.fixed||0);
+  var ratio= rec.ratio||0;
+  var statusColor = ratio>50?'var(--rd)':ratio>35?'#d97706':'var(--gr)';
+
+  // 거래처별 매출 테이블
+  var byS = rec.bySales||{};
+  var custRows = Object.keys(byS).filter(function(k){return k&&k!=='undefined';})
+    .sort(function(a,b){
+      var va = byS[a]&&typeof byS[a]==='object' ? (byS[a].amount||0) : (byS[a]||0);
+      var vb = byS[b]&&typeof byS[b]==='object' ? (byS[b].amount||0) : (byS[b]||0);
+      return vb-va;
+    })
+    .map(function(cust){
+      var amt = byS[cust]&&typeof byS[cust]==='object' ? (byS[cust].amount||0) : (byS[cust]||0);
+      return '<tr><td>'+badge(cust)+'</td><td class="r">'+won(amt)+'</td></tr>';
+    }).join('');
+
+  document.getElementById('saved-summary-body').innerHTML =
+    '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px">'
+      +'<div class="met"><div class="met-lbl">총 매출</div><div class="met-val">'+won(rec.rev)+'</div></div>'
+      +'<div class="met"><div class="met-lbl">매입원가</div><div class="met-val">'+won(rec.cogs)+'</div></div>'
+      +'<div class="met"><div class="met-lbl">고정비</div><div class="met-val">'+won(rec.fixed||0)+'</div></div>'
+      +'<div class="met"><div class="met-lbl">영업이익</div>'
+        +'<div class="met-val" style="color:'+(op>=0?'var(--gr)':'var(--rd)')+'">'+won(op)+'</div>'
+      +'</div>'
+    +'</div>'
+    +(custRows
+      ? '<table><thead><tr><th>거래처</th><th class="r">매출</th></tr></thead>'
+        +'<tbody>'+custRows+'</tbody></table>'
+      : '<div style="font-size:12px;color:var(--mu)">거래처별 데이터 없음</div>'
+    );
+}
+
 function onPeriodChange(){
   var period = document.getElementById('g-period').value;
   if(!period) return;
 
-  var db = JSON.parse(localStorage.getItem('ek_records')||'{}');
+  var db  = JSON.parse(localStorage.getItem('ek_records')||'{}');
   var rec = db[period];
 
-  // 대시보드 월도 동기화
+  // 대시보드 월 동기화
   var parts = period.split('-');
-  if(parts.length===2){
-    dashYear_  = parseInt(parts[0]);
-    dashMonth_ = parseInt(parts[1]);
-  }
+  if(parts.length===2){ dashYear_=parseInt(parts[0]); dashMonth_=parseInt(parts[1]); }
+
+  renderSavedSummary(period);
 
   if(rec){
-    // 저장된 데이터가 있으면 손익 계산 탭 바로 갱신
     toast('📂 '+period+' 저장 데이터 불러옴','ok');
     calcPnL();
   } else {
-    // 없으면 안내
     toast('📭 '+period+' 저장된 데이터 없음 — 파일을 업로드하세요','ok');
   }
 }
@@ -2032,6 +2122,7 @@ async function savePeriod(){
     if(resp.ok){
       document.getElementById('notion-sync-status').textContent='✅ Notion 저장 완료 ('+period+')';
       toast('💾 로컬 + Notion 저장 완료 ('+period+')','ok');
+      renderSavedSummary(period);
     } else {
       var err=await resp.json();
       document.getElementById('notion-sync-status').textContent='⚠️ Notion 오류: '+(err.message||resp.status);
@@ -2196,8 +2287,12 @@ function renderDashMonth(){
 
   // ── 고객사별 매출 차트 (저장 데이터 or 현재 로드 데이터) ──
   var custLabels=[], custAmts=[], custBgs=[], custBds=[];
-  Object.keys(curBySales).sort(function(a,b){return curBySales[b]-curBySales[a];}).forEach(function(c2,i){
-    var amt = typeof curBySales[c2]==='object' ? curBySales[c2].amount : curBySales[c2];
+  Object.keys(curBySales).filter(function(k){return k&&k!=='undefined';}).sort(function(a,b){
+    var va = curBySales[a]&&typeof curBySales[a]==='object' ? (curBySales[a].amount||0) : (curBySales[a]||0);
+    var vb = curBySales[b]&&typeof curBySales[b]==='object' ? (curBySales[b].amount||0) : (curBySales[b]||0);
+    return vb-va;
+  }).forEach(function(c2,i){
+    var amt = curBySales[c2]&&typeof curBySales[c2]==='object' ? (curBySales[c2].amount||0) : (curBySales[c2]||0);
     if(!amt||amt<=0) return;
     custLabels.push(c2);
     custAmts.push(Math.round(amt/10000));
@@ -2350,8 +2445,9 @@ function renderDashYear(){
   yearKeys.forEach(function(k){
     var r=db[k];
     if(r.bySales){
-      Object.keys(r.bySales).forEach(function(c2){
-        custTotals[c2]=(custTotals[c2]||0)+r.bySales[c2].amount;
+      Object.keys(r.bySales).filter(function(k){return k&&k!=='undefined';}).forEach(function(c2){
+        var amt = r.bySales[c2]&&typeof r.bySales[c2]==='object' ? (r.bySales[c2].amount||0) : (r.bySales[c2]||0);
+        custTotals[c2]=(custTotals[c2]||0)+amt;
       });
     }
   });
