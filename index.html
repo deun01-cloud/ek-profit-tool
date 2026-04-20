@@ -367,7 +367,10 @@ tbody tr:hover td{background:#fafafa}
   <div class="card" style="margin-top:14px">
     <div class="card-h">
       <div class="card-t">🏢 고정비</div>
-      <button class="btn btn-sm" onclick="addFixed()">+ 항목 추가</button>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-sm" onclick="addFixed()">+ 항목 추가</button>
+        <button class="btn btn-sm" style="color:var(--rd)" onclick="if(confirm('고정비 항목을 모두 초기화할까요?')){S.fixed=[];renderFixed();localStorage.removeItem('ek_fixed');syncFixedToNotion();}">🗑️ 초기화</button>
+      </div>
     </div>
     <div style="padding:14px 16px">
       <div style="display:grid;grid-template-columns:1fr 150px 36px;gap:8px;margin-bottom:8px">
@@ -785,8 +788,22 @@ var S = {
   document.getElementById('g-period').value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
   var savedFixed = localStorage.getItem('ek_fixed');
   if(savedFixed){
-    try{ S.fixed = JSON.parse(savedFixed) || []; }
-    catch(e){ S.fixed = []; }
+    try{
+      var parsed = JSON.parse(savedFixed) || [];
+      // 로컬 중복 제거 — 항목명+금액 기준
+      var seen = {};
+      S.fixed = parsed.filter(function(f){
+        if(!f.label) return false;
+        var k = f.label.trim()+'__'+f.amount;
+        if(seen[k]) return false;
+        seen[k] = true;
+        return true;
+      });
+      // 중복 제거된 경우 다시 저장
+      if(S.fixed.length !== parsed.length){
+        localStorage.setItem('ek_fixed', JSON.stringify(S.fixed));
+      }
+    } catch(e){ S.fixed = []; }
   } else {
     // 최초 실행 시 기본 항목 제공 (amount는 0 — 사용자가 직접 입력)
     S.fixed = [{label:'임직원 급여',amount:0},{label:'사무실 임대료',amount:0},{label:'통신비',amount:0}];
