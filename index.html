@@ -2015,37 +2015,74 @@ function renderSavedSummary(period){
   card.style.display='block';
   document.getElementById('saved-summary-period').textContent = period;
 
-  var op   = rec.rev - rec.cogs - (rec.fixed||0);
-  var ratio= rec.ratio||0;
-  var statusColor = ratio>50?'var(--rd)':ratio>35?'#d97706':'var(--gr)';
+  var op    = rec.rev - rec.cogs - (rec.fixed||0);
+  var ratio = rec.ratio||0;
+  var opColor = op>=0?'var(--gr)':'var(--rd)';
 
-  // 거래처별 매출 테이블
-  var byS = rec.bySales||{};
-  var custRows = Object.keys(byS).filter(function(k){return k&&k!=='undefined';})
-    .sort(function(a,b){
-      var va = byS[a]&&typeof byS[a]==='object' ? (byS[a].amount||0) : (byS[a]||0);
-      var vb = byS[b]&&typeof byS[b]==='object' ? (byS[b].amount||0) : (byS[b]||0);
-      return vb-va;
-    })
-    .map(function(cust){
-      var amt = byS[cust]&&typeof byS[cust]==='object' ? (byS[cust].amount||0) : (byS[cust]||0);
-      return '<tr><td>'+badge(cust)+'</td><td class="r">'+won(amt)+'</td></tr>';
-    }).join('');
+  // ── 납품 내역 테이블
+  var dlvRows = '';
+  var byDlv = rec.byDelivery||{};
+  Object.keys(byDlv).filter(function(k){return k&&k!=='undefined';})
+    .sort(function(a,b){ return (byDlv[b].amount||0)-(byDlv[a].amount||0); })
+    .forEach(function(cust){
+      var d = byDlv[cust]||{};
+      dlvRows += '<tr><td>'+badge(cust)+'</td>'
+        +'<td class="r">'+Math.round(d.qty||0)+'</td>'
+        +'<td class="r">'+won(d.amount||0)+'</td></tr>';
+    });
+
+  // ── 샘플·개발비 테이블
+  var smpRows = '';
+  var bySmp = rec.bySampleDev||{};
+  Object.keys(bySmp).filter(function(k){return k&&k!=='undefined';})
+    .sort(function(a,b){ return ((bySmp[b].sample||0)+(bySmp[b].dev||0))-((bySmp[a].sample||0)+(bySmp[a].dev||0)); })
+    .forEach(function(cust){
+      var d = bySmp[cust]||{};
+      smpRows += '<tr><td>'+badge(cust)+'</td>'
+        +'<td class="r">'+won(d.sample||0)+'</td>'
+        +'<td class="r">'+won(d.dev||0)+'</td>'
+        +'<td class="r">'+won((d.sample||0)+(d.dev||0))+'</td></tr>';
+    });
+
+  // 기존 bySales fallback (byDelivery/bySampleDev 없는 구버전 데이터)
+  if(!dlvRows && !smpRows){
+    var byS = rec.bySales||{};
+    Object.keys(byS).filter(function(k){return k&&k!=='undefined';})
+      .sort(function(a,b){
+        var va = byS[a]&&typeof byS[a]==='object'?(byS[a].amount||0):(byS[a]||0);
+        var vb = byS[b]&&typeof byS[b]==='object'?(byS[b].amount||0):(byS[b]||0);
+        return vb-va;
+      }).forEach(function(cust){
+        var amt = byS[cust]&&typeof byS[cust]==='object'?(byS[cust].amount||0):(byS[cust]||0);
+        dlvRows += '<tr><td>'+badge(cust)+'</td><td class="r">—</td><td class="r">'+won(amt)+'</td></tr>';
+      });
+  }
 
   document.getElementById('saved-summary-body').innerHTML =
-    '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px">'
-      +'<div class="met"><div class="met-lbl">총 매출</div><div class="met-val">'+won(rec.rev)+'</div></div>'
-      +'<div class="met"><div class="met-lbl">매입원가</div><div class="met-val">'+won(rec.cogs)+'</div></div>'
-      +'<div class="met"><div class="met-lbl">고정비</div><div class="met-val">'+won(rec.fixed||0)+'</div></div>'
-      +'<div class="met"><div class="met-lbl">영업이익</div>'
-        +'<div class="met-val" style="color:'+(op>=0?'var(--gr)':'var(--rd)')+'">'+won(op)+'</div>'
-      +'</div>'
-    +'</div>'
-    +(custRows
-      ? '<table><thead><tr><th>거래처</th><th class="r">매출</th></tr></thead>'
-        +'<tbody>'+custRows+'</tbody></table>'
-      : '<div style="font-size:12px;color:var(--mu)">거래처별 데이터 없음</div>'
-    );
+    // KPI 4개
+    '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">'\
+      +'<div class="met"><div class="met-lbl">총 매출</div><div class="met-val">'+won(rec.rev)+'</div>'\
+        +'<div class="met-sub">납품 '+won(rec.revD||0)+'</div></div>'\
+      +'<div class="met"><div class="met-lbl">샘플·개발비</div><div class="met-val">'+won((rec.revS||0)+(rec.revDev||0))+'</div>'\
+        +'<div class="met-sub">샘플 '+won(rec.revS||0)+' / 개발비 '+won(rec.revDev||0)+'</div></div>'\
+      +'<div class="met"><div class="met-lbl">매입원가</div><div class="met-val">'+won(rec.cogs)+'</div>'\
+        +'<div class="met-sub">원가율 '+(ratio)+'%</div></div>'\
+      +'<div class="met"><div class="met-lbl">영업이익</div>'\
+        +'<div class="met-val" style="color:'+opColor+'">'+won(op)+'</div>'\
+        +'<div class="met-sub">고정비 '+won(rec.fixed||0)+'</div></div>'\
+    +'</div>'\
+    // 납품 내역
+    +(dlvRows
+      ? '<div style="font-size:11px;font-weight:700;color:var(--mu);letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">① 납품 매출</div>'\
+        +'<table style="margin-bottom:14px"><thead><tr><th>거래처</th><th class="r">수량</th><th class="r">공급가액</th></tr></thead>'\
+        +'<tbody>'+dlvRows+'</tbody></table>'
+      : '')\
+    // 샘플·개발비
+    +(smpRows
+      ? '<div style="font-size:11px;font-weight:700;color:var(--mu);letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">② 샘플·개발비</div>'\
+        +'<table><thead><tr><th>거래처</th><th class="r">샘플원가</th><th class="r">개발비</th><th class="r">소계</th></tr></thead>'\
+        +'<tbody>'+smpRows+'</tbody></table>'
+      : '');
 }
 
 function onPeriodChange(){
@@ -2081,17 +2118,26 @@ async function savePeriod(){
 
   // ── 1. 로컬 저장 ──────────────────────────────
   var bySales={};
+  // 납품 매출 상세
+  var byDelivery={};  // {cust: {amount, qty}}
+  var bySampleDev={}; // {cust: {sample, dev}}
   if(S.sales) S.sales.forEach(function(it){
     if(!bySales[it.cust]) bySales[it.cust]={amount:0,qty:0};
     bySales[it.cust].amount+=it.amount; bySales[it.cust].qty+=it.qty;
+    if(!byDelivery[it.cust]) byDelivery[it.cust]={amount:0,qty:0};
+    byDelivery[it.cust].amount+=it.amount; byDelivery[it.cust].qty+=it.qty;
   });
   if(S.sample) S.sample.forEach(function(it){
     if(!bySales[it.cust]) bySales[it.cust]={amount:0,qty:0};
     bySales[it.cust].amount+=it.amount;
+    if(!bySampleDev[it.cust]) bySampleDev[it.cust]={sample:0,dev:0};
+    if(it.isDev) bySampleDev[it.cust].dev+=it.amount;
+    else         bySampleDev[it.cust].sample+=it.amount;
   });
   var record={period:period,rev:rev,cogs:cogs,fixed:fx,
     revD:revD,revS:revS,revDev:revDev,
     profit:rev-cogs-fx,ratio:ratio,bySales:bySales,
+    byDelivery:byDelivery,bySampleDev:bySampleDev,
     savedAt:new Date().toISOString()};
   var db=JSON.parse(localStorage.getItem('ek_records')||'{}');
   db[period]=record;
