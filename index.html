@@ -164,6 +164,7 @@ tbody tr:hover td{background:#fafafa}
   <div class="hdr-right">
     <input type="month" id="g-period" onchange="onPeriodChange()">
     <button class="btn btn-ac" onclick="savePeriod()">💾 지금 저장</button>
+    <button class="btn" style="color:var(--rd);padding:8px 12px" onclick="deletePeriodData()" title="이 기간 저장 데이터 삭제">🗑️</button>
   </div>
 </div>
 
@@ -398,6 +399,7 @@ tbody tr:hover td{background:#fafafa}
     <button class="btn btn-ac" onclick="calcPnL()">🔄 손익 계산</button>
     <button class="btn btn-gr" onclick="savePeriod()">💾 이 기간 저장</button>
     <button class="btn" onclick="copyPnL()">📋 클립보드 복사</button>
+    <button class="btn" style="color:var(--rd)" onclick="deletePeriodData()">🗑️ 이 기간 삭제</button>
   </div>
 
   <div class="metrics">
@@ -1587,6 +1589,19 @@ function calcPnL(){
       +'<td style="font-size:11px;color:var(--mu)">'+row.note+'</td></tr>';
   }).join('');
   document.getElementById('tb-pnl-stmt').innerHTML=stHtml;
+}
+
+function deletePeriodData(){
+  var period = document.getElementById('g-period').value;
+  if(!period){ toast('기간을 선택해주세요','err'); return; }
+  if(!confirm(period+' 저장 데이터를 삭제할까요?\n(업로드된 파일 데이터는 유지됩니다)')) return;
+  var db = JSON.parse(localStorage.getItem('ek_records')||'{}');
+  if(!db[period]){ toast(period+' 저장된 데이터가 없습니다','err'); return; }
+  delete db[period];
+  localStorage.setItem('ek_records', JSON.stringify(db));
+  renderSavedSummary(period);
+  renderDash();
+  toast('🗑️ '+period+' 데이터 삭제 완료','ok');
 }
 
 function copyPnL(){
