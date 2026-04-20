@@ -796,8 +796,11 @@ var S = {
   renderFixed();
   _fixedLoading = false;
   loadBilling();
-  // 저장 데이터 요약 표시
-  renderSavedSummary(document.getElementById('g-period').value);
+  // 현재 월 저장 데이터 요약 표시
+  var initPeriod = document.getElementById('g-period').value;
+  renderSavedSummary(initPeriod);
+  renderSales();
+  renderSample();
   // Notion에서 고정비 로드 (로컬보다 Notion 우선, sync는 하지 않음)
   loadFixedFromNotion().then(function(ok){
     if(ok) document.getElementById('notion-sync-status').textContent='✅ Notion에서 고정비 불러왔습니다';
@@ -1096,8 +1099,24 @@ function parseCN(wb){
 //  Render — 납품 매출
 // ─────────────────────────────────────────
 function renderSales(){
+  // 파일 없고 저장 데이터 있으면 저장 데이터로 표시
   if(!S.sales||!S.sales.length){
-    document.getElementById('sales-summary').innerHTML='<div class="empty" style="padding:12px"><div class="empty-ico" style="font-size:20px">📂</div><div style="font-size:12px;color:var(--mu)">파일 업로드 후 표시</div></div>';
+    var period = document.getElementById('g-period').value;
+    var rec = period && JSON.parse(localStorage.getItem('ek_records')||'{}')[period];
+    var byDlv = rec&&rec.byDelivery;
+    if(byDlv && Object.keys(byDlv).length){
+      var total = Object.keys(byDlv).reduce(function(s,k){return s+(byDlv[k].amount||0);},0);
+      var totalQty = Object.keys(byDlv).reduce(function(s,k){return s+(byDlv[k].qty||0);},0);
+      var html = '<table><thead><tr><th>거래처</th><th class="r">수량</th><th class="r">공급가액</th><th class="r">비중</th></tr></thead><tbody>';
+      Object.keys(byDlv).sort(function(a,b){return (byDlv[b].amount||0)-(byDlv[a].amount||0);}).forEach(function(c){
+        var d=byDlv[c];
+        html+='<tr><td>'+badge(c)+'</td><td class="r">'+Math.round(d.qty||0)+'</td><td class="r">'+won(d.amount||0)+'</td><td class="r">'+(total>0?Math.round((d.amount||0)/total*100):0)+'%</td></tr>';
+      });
+      html+='<tr class="tr-tot"><td>합계</td><td class="r">'+Math.round(totalQty)+'</td><td class="r">'+won(total)+'</td><td class="r">100%</td></tr></tbody></table>';
+      document.getElementById('sales-summary').innerHTML = html;
+    } else {
+      document.getElementById('sales-summary').innerHTML='<div class="empty" style="padding:12px"><div class="empty-ico" style="font-size:20px">📂</div><div style="font-size:12px;color:var(--mu)">파일 업로드 후 표시</div></div>';
+    }
     document.getElementById('sales-detail-card').style.display='none';
     return;
   }
@@ -1138,7 +1157,22 @@ function renderSales(){
 // ─────────────────────────────────────────
 function renderSample(){
   if(!S.sample||!S.sample.length){
-    document.getElementById('sample-summary').innerHTML='<div class="empty" style="padding:12px"><div class="empty-ico" style="font-size:20px">📂</div><div style="font-size:12px;color:var(--mu)">파일 업로드 후 표시</div></div>';
+    var period = document.getElementById('g-period').value;
+    var rec = period && JSON.parse(localStorage.getItem('ek_records')||'{}')[period];
+    var bySmp = rec&&rec.bySampleDev;
+    if(bySmp && Object.keys(bySmp).length){
+      var totProd = Object.keys(bySmp).reduce(function(s,k){return s+(bySmp[k].sample||0);},0);
+      var totDev  = Object.keys(bySmp).reduce(function(s,k){return s+(bySmp[k].dev||0);},0);
+      var html = '<table><thead><tr><th>거래처</th><th class="r">샘플원가</th><th class="r">개발비</th><th class="r">소계</th></tr></thead><tbody>';
+      Object.keys(bySmp).sort(function(a,b){return ((bySmp[b].sample||0)+(bySmp[b].dev||0))-((bySmp[a].sample||0)+(bySmp[a].dev||0));}).forEach(function(c){
+        var d=bySmp[c];
+        html+='<tr><td>'+badge(c)+'</td><td class="r">'+won(d.sample||0)+'</td><td class="r">'+won(d.dev||0)+'</td><td class="r">'+won((d.sample||0)+(d.dev||0))+'</td></tr>';
+      });
+      html+='<tr class="tr-tot"><td>합계</td><td class="r">'+won(totProd)+'</td><td class="r">'+won(totDev)+'</td><td class="r">'+won(totProd+totDev)+'</td></tr></tbody></table>';
+      document.getElementById('sample-summary').innerHTML = html;
+    } else {
+      document.getElementById('sample-summary').innerHTML='<div class="empty" style="padding:12px"><div class="empty-ico" style="font-size:20px">📂</div><div style="font-size:12px;color:var(--mu)">파일 업로드 후 표시</div></div>';
+    }
     document.getElementById('sample-detail-card').style.display='none';
     return;
   }
@@ -2019,32 +2053,27 @@ function renderSavedSummary(period){
   var ratio = rec.ratio||0;
   var opColor = op>=0?'var(--gr)':'var(--rd)';
 
-  // ── 납품 내역 테이블
+  // 납품 내역 테이블
   var dlvRows = '';
   var byDlv = rec.byDelivery||{};
   Object.keys(byDlv).filter(function(k){return k&&k!=='undefined';})
     .sort(function(a,b){ return (byDlv[b].amount||0)-(byDlv[a].amount||0); })
     .forEach(function(cust){
       var d = byDlv[cust]||{};
-      dlvRows += '<tr><td>'+badge(cust)+'</td>'
-        +'<td class="r">'+Math.round(d.qty||0)+'</td>'
-        +'<td class="r">'+won(d.amount||0)+'</td></tr>';
+      dlvRows += '<tr><td>'+badge(cust)+'</td><td class="r">'+Math.round(d.qty||0)+'</td><td class="r">'+won(d.amount||0)+'</td></tr>';
     });
 
-  // ── 샘플·개발비 테이블
+  // 샘플·개발비 테이블
   var smpRows = '';
   var bySmp = rec.bySampleDev||{};
   Object.keys(bySmp).filter(function(k){return k&&k!=='undefined';})
     .sort(function(a,b){ return ((bySmp[b].sample||0)+(bySmp[b].dev||0))-((bySmp[a].sample||0)+(bySmp[a].dev||0)); })
     .forEach(function(cust){
       var d = bySmp[cust]||{};
-      smpRows += '<tr><td>'+badge(cust)+'</td>'
-        +'<td class="r">'+won(d.sample||0)+'</td>'
-        +'<td class="r">'+won(d.dev||0)+'</td>'
-        +'<td class="r">'+won((d.sample||0)+(d.dev||0))+'</td></tr>';
+      smpRows += '<tr><td>'+badge(cust)+'</td><td class="r">'+won(d.sample||0)+'</td><td class="r">'+won(d.dev||0)+'</td><td class="r">'+won((d.sample||0)+(d.dev||0))+'</td></tr>';
     });
 
-  // 기존 bySales fallback (byDelivery/bySampleDev 없는 구버전 데이터)
+  // 구버전 fallback (byDelivery 없는 경우)
   if(!dlvRows && !smpRows){
     var byS = rec.bySales||{};
     Object.keys(byS).filter(function(k){return k&&k!=='undefined';})
@@ -2058,31 +2087,26 @@ function renderSavedSummary(period){
       });
   }
 
-  document.getElementById('saved-summary-body').innerHTML =
-    // KPI 4개
-    '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">'\
-      +'<div class="met"><div class="met-lbl">총 매출</div><div class="met-val">'+won(rec.rev)+'</div>'\
-        +'<div class="met-sub">납품 '+won(rec.revD||0)+'</div></div>'\
-      +'<div class="met"><div class="met-lbl">샘플·개발비</div><div class="met-val">'+won((rec.revS||0)+(rec.revDev||0))+'</div>'\
-        +'<div class="met-sub">샘플 '+won(rec.revS||0)+' / 개발비 '+won(rec.revDev||0)+'</div></div>'\
-      +'<div class="met"><div class="met-lbl">매입원가</div><div class="met-val">'+won(rec.cogs)+'</div>'\
-        +'<div class="met-sub">원가율 '+(ratio)+'%</div></div>'\
-      +'<div class="met"><div class="met-lbl">영업이익</div>'\
-        +'<div class="met-val" style="color:'+opColor+'">'+won(op)+'</div>'\
-        +'<div class="met-sub">고정비 '+won(rec.fixed||0)+'</div></div>'\
-    +'</div>'\
-    // 납품 내역
-    +(dlvRows
-      ? '<div style="font-size:11px;font-weight:700;color:var(--mu);letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">① 납품 매출</div>'\
-        +'<table style="margin-bottom:14px"><thead><tr><th>거래처</th><th class="r">수량</th><th class="r">공급가액</th></tr></thead>'\
-        +'<tbody>'+dlvRows+'</tbody></table>'
-      : '')\
-    // 샘플·개발비
-    +(smpRows
-      ? '<div style="font-size:11px;font-weight:700;color:var(--mu);letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">② 샘플·개발비</div>'\
-        +'<table><thead><tr><th>거래처</th><th class="r">샘플원가</th><th class="r">개발비</th><th class="r">소계</th></tr></thead>'\
-        +'<tbody>'+smpRows+'</tbody></table>'
-      : '');
+  var html = '';
+  // KPI 4개
+  html += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">';
+  html += '<div class="met"><div class="met-lbl">총 매출</div><div class="met-val">'+won(rec.rev)+'</div><div class="met-sub">납품 '+won(rec.revD||0)+'</div></div>';
+  html += '<div class="met"><div class="met-lbl">샘플·개발비</div><div class="met-val">'+won((rec.revS||0)+(rec.revDev||0))+'</div><div class="met-sub">샘플 '+won(rec.revS||0)+' / 개발비 '+won(rec.revDev||0)+'</div></div>';
+  html += '<div class="met"><div class="met-lbl">매입원가</div><div class="met-val">'+won(rec.cogs)+'</div><div class="met-sub">원가율 '+ratio+'%</div></div>';
+  html += '<div class="met"><div class="met-lbl">영업이익</div><div class="met-val" style="color:'+opColor+'">'+won(op)+'</div><div class="met-sub">고정비 '+won(rec.fixed||0)+'</div></div>';
+  html += '</div>';
+  // 납품 내역
+  if(dlvRows){
+    html += '<div style="font-size:11px;font-weight:700;color:var(--mu);letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">① 납품 매출</div>';
+    html += '<table style="margin-bottom:14px"><thead><tr><th>거래처</th><th class="r">수량</th><th class="r">공급가액</th></tr></thead><tbody>'+dlvRows+'</tbody></table>';
+  }
+  // 샘플·개발비
+  if(smpRows){
+    html += '<div style="font-size:11px;font-weight:700;color:var(--mu);letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">② 샘플·개발비</div>';
+    html += '<table><thead><tr><th>거래처</th><th class="r">샘플원가</th><th class="r">개발비</th><th class="r">소계</th></tr></thead><tbody>'+smpRows+'</tbody></table>';
+  }
+
+  document.getElementById('saved-summary-body').innerHTML = html;
 }
 
 function onPeriodChange(){
@@ -2097,6 +2121,9 @@ function onPeriodChange(){
   if(parts.length===2){ dashYear_=parseInt(parts[0]); dashMonth_=parseInt(parts[1]); }
 
   renderSavedSummary(period);
+  // 파일 없으면 저장 데이터로 요약 갱신
+  if(!S.sales||!S.sales.length) renderSales();
+  if(!S.sample||!S.sample.length) renderSample();
 
   if(rec){
     toast('📂 '+period+' 저장 데이터 불러옴','ok');
