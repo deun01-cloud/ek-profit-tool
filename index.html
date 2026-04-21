@@ -1167,11 +1167,12 @@ function renderSales(){
   var items=S.sales;
   var byC={};
   items.forEach(function(it){
+    if(!it.cust||it.cust==='undefined') return;
     if(!byC[it.cust])byC[it.cust]={qty:0,amt:0};
     byC[it.cust].qty+=it.qty; byC[it.cust].amt+=it.amount;
   });
   var total=items.reduce(function(s,i){return s+i.amount},0);
-  var sorted=Object.keys(byC).sort(function(a,b){return byC[b].amt-byC[a].amt});
+  var sorted=Object.keys(byC).filter(function(k){return k&&k!=='undefined';}).sort(function(a,b){return byC[b].amt-byC[a].amt});
 
   var html='<table><thead><tr><th>거래처</th><th class="r">수량</th><th class="r">공급가액</th><th class="r">비중</th></tr></thead><tbody>';
   sorted.forEach(function(c){
@@ -1226,6 +1227,7 @@ function renderSample(){
   var items=S.sample;
   var byC={};
   items.forEach(function(it){
+    if(!it.cust||it.cust==='undefined') return;
     if(!byC[it.cust])byC[it.cust]={prod:0,dev:0};
     if(it.isDev)byC[it.cust].dev+=it.amount;
     else byC[it.cust].prod+=it.amount;
@@ -1234,7 +1236,7 @@ function renderSample(){
   var totDev =items.filter(function(i){return i.isDev}).reduce(function(s,i){return s+i.amount},0);
 
   var html='<table><thead><tr><th>거래처</th><th class="r">샘플원가</th><th class="r">개발비</th><th class="r">소계</th></tr></thead><tbody>';
-  Object.keys(byC).sort().forEach(function(c){
+  Object.keys(byC).filter(function(k){return k&&k!=='undefined';}).sort().forEach(function(c){
     var d=byC[c];
     html+='<tr><td>'+badge(c)+'</td><td class="r">'+won(d.prod)+'</td><td class="r">'+won(d.dev)+'</td><td class="r">'+won(d.prod+d.dev)+'</td></tr>';
   });
@@ -1597,10 +1599,12 @@ function calcPnL(){
   // ── 거래처별 (납품+샘플+개발비 모두 매출로) ──
   var byS={};
   if(S.sales) S.sales.forEach(function(it){
+    if(!it.cust||it.cust==='undefined') return;
     if(!byS[it.cust]) byS[it.cust]=0;
     byS[it.cust]+=it.amount;
   });
   if(S.sample) S.sample.forEach(function(it){
+    if(!it.cust||it.cust==='undefined') return;
     if(!byS[it.cust]) byS[it.cust]=0;
     byS[it.cust]+=it.amount;
   });
@@ -2765,12 +2769,14 @@ async function savePeriod(){
   var byDelivery={};  // {cust: {amount, qty}}
   var bySampleDev={}; // {cust: {sample, dev}}
   if(S.sales) S.sales.forEach(function(it){
+    if(!it.cust||it.cust==='undefined') return;
     if(!bySales[it.cust]) bySales[it.cust]={amount:0,qty:0};
     bySales[it.cust].amount+=it.amount; bySales[it.cust].qty+=it.qty;
     if(!byDelivery[it.cust]) byDelivery[it.cust]={amount:0,qty:0};
     byDelivery[it.cust].amount+=it.amount; byDelivery[it.cust].qty+=it.qty;
   });
   if(S.sample) S.sample.forEach(function(it){
+    if(!it.cust||it.cust==='undefined') return;
     if(!bySales[it.cust]) bySales[it.cust]={amount:0,qty:0};
     bySales[it.cust].amount+=it.amount;
     if(!bySampleDev[it.cust]) bySampleDev[it.cust]={sample:0,dev:0};
