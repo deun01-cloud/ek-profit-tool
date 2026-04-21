@@ -835,8 +835,8 @@ var S = {
     } catch(e){ S.fixed = []; }
   } else {
     // 최초 실행 시 기본 항목 제공 (amount는 0 — 사용자가 직접 입력)
-    S.fixed = [{label:'임직원 급여',amount:0},{label:'사무실 임대료',amount:0},{label:'통신비',amount:0}];
-    localStorage.setItem('ek_fixed', JSON.stringify(S.fixed)); // sync 없이 로컬만 저장
+    S.fixed = [];
+    localStorage.setItem('ek_fixed', JSON.stringify(S.fixed));
   }
   _fixedLoading = true;
   renderFixed();
@@ -3290,6 +3290,9 @@ function injectTestData(){
 
 function clearTestData(){
   S.sales=null; S.sample=null; S.ek=null; S.exp=null; S.cn=null; S.cnList=[];
+  // 고정비도 초기화
+  S.fixed=[];
+  localStorage.removeItem('ek_fixed');
   ['dz-sales','dz-sample','dz-ek','dz-exp','dz-cn'].forEach(function(id){
     var el=document.getElementById(id); if(el) el.classList.remove('ok');
   });
