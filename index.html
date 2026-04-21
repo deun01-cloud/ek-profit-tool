@@ -177,7 +177,8 @@ tbody tr:hover td{background:#fafafa}
   <button class="tab on"  onclick="go('sales',this)">📦 매출 입력</button>
   <button class="tab"     onclick="go('purchase',this)">🧾 매입 &amp; 고정비</button>
   <button class="tab"     onclick="go('pnl',this)">📊 손익 계산</button>
-  <button class="tab"     onclick="go('inv',this)">🖨️ 거래명세서 &amp; 청구</button>
+  <button class="tab"     onclick="go('inv',this)">🖨️ 거래명세서</button>
+  <button class="tab"     onclick="go('billing',this)">💰 청구 관리</button>
   <button class="tab"     onclick="go('dash',this)">📈 대시보드</button>
 </div>
 
@@ -497,6 +498,7 @@ tbody tr:hover td{background:#fafafa}
           <button class="btn btn-ac btn-sm" onclick="exportInv('xlsx')">📥 Excel</button>
           <button class="btn btn-sm" onclick="exportInv('print')">🖨️ 인쇄 / PDF</button>
           <button class="btn btn-gr btn-sm" onclick="exportInv('xlsx');setTimeout(function(){exportInv('print');},500)">📥+🖨️ 동시 발행</button>
+          <button class="btn btn-sm" style="background:#f59e0b;color:#fff;border:none;font-weight:700" onclick="confirmInv()">✅ 확정</button>
         </div>
       </div>
 
@@ -579,15 +581,18 @@ tbody tr:hover td{background:#fafafa}
     </div>
   </div>
 
-  <!-- 청구 관리 (거래명세서 탭 통합) -->
-  <div style="margin-top:24px;border-top:2px solid var(--bd);padding-top:20px">
-    <div style="font-size:15px;font-weight:700;margin-bottom:16px;display:flex;align-items:center;gap:8px">
-      <span>💰 청구 관리</span>
-      <span style="font-size:12px;font-weight:400;color:var(--mu)">거래명세서 발행 시 자동 등록</span>
-    </div>
+  
+</div>
+</div>
+
+<!-- ══════════════════════════════════════
+     TAB 6: 청구 관리
+══════════════════════════════════════ -->
+<div class="pg" id="pg-billing">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
     <div>
-      <div style="font-size:13px;color:var(--mu)">거래명세서 발행 시 자동 등록됩니다. 입금 및 계산서 발행 여부를 체크하세요.</div>
+      <div style="font-size:15px;font-weight:700;margin-bottom:4px">💰 청구 관리</div>
+      <div style="font-size:13px;color:var(--mu)">거래명세서 확정 시 자동 등록됩니다. 입금 및 계산서 발행 여부를 체크하세요.</div>
     </div>
     <div style="display:flex;gap:8px">
       <button class="btn" onclick="syncBillingToNotion()">📤 Notion 동기화</button>
@@ -595,40 +600,30 @@ tbody tr:hover td{background:#fafafa}
     </div>
   </div>
 
-  <!-- 미수금 요약 카드 -->
   <div id="billing-kpi" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:20px"></div>
 
-  <!-- 청구 목록 테이블 -->
   <div class="card" id="billing-card">
     <div class="card-h">
       <div class="card-t">청구 현황</div>
       <div class="card-badge" id="billing-cnt"></div>
     </div>
     <div id="billing-empty" class="empty" style="padding:40px">
-      <div class="empty-ico">🖨️</div>
-      <div class="empty-ttl">발행된 거래명세서가 없습니다</div>
-      <div style="font-size:12px;color:var(--mu)">거래명세서 탭에서 Excel 다운로드 시 자동으로 등록됩니다</div>
+      <div class="empty-ico">💰</div>
+      <div class="empty-ttl">등록된 청구가 없습니다</div>
+      <div style="font-size:12px;color:var(--mu)">거래명세서 탭에서 확정 버튼을 클릭하면 자동으로 등록됩니다</div>
     </div>
     <div id="billing-table-wrap" style="display:none">
       <table>
         <thead>
           <tr>
-            <th>기간</th>
-            <th>거래처</th>
-            <th class="r">청구금액</th>
-            <th class="r">공급가액</th>
-            <th style="text-align:center">계산서 발행</th>
-            <th style="text-align:center">입금 완료</th>
-            <th>입금일</th>
-            <th></th>
+            <th>기간</th><th>거래처</th><th class="r">청구금액</th>
+            <th class="r">공급가액</th><th style="text-align:center">계산서 발행</th>
+            <th style="text-align:center">입금 완료</th><th>입금일</th><th></th>
           </tr>
         </thead>
         <tbody id="tb-billing"></tbody>
       </table>
     </div>
-  </div>
-
-
   </div>
 </div>
 
@@ -857,15 +852,14 @@ var S = {
 //  Tab
 // ─────────────────────────────────────────
 function go(id,el){
-  if(id==='billing') id='inv';
   document.querySelectorAll('.pg').forEach(function(p){p.classList.remove('on')});
   document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('on')});
   document.getElementById('pg-'+id).classList.add('on');
   el.classList.add('on');
   if(id==='dash'){ document.getElementById('dash-view-month').style.display='block'; document.getElementById('dash-view-year').style.display='none'; renderDash(); }
-  if(id==='billing'||id==='inv') renderBilling();
+  if(id==='billing') renderBilling();
   if(id==='inv') renderInvArea();
-  if(id==='pnl')  calcPnL();
+  if(id==='pnl') calcPnL();
 }
 
 // ─────────────────────────────────────────
@@ -1987,6 +1981,23 @@ function renderInvPreview(cust){
   renderAsRows();
   renderDepositRows();
   calcGrandTotal();
+}
+
+// ── 확정 버튼 — Excel 없이 청구 관리에만 등록 후 청구 탭으로 이동
+function confirmInv(){
+  if(!S.selCust){ toast('거래처를 선택해주세요','err'); return; }
+  var cust   = S.selCust;
+  var period = document.getElementById('g-period').value||'';
+  var dlv = (S.sales||[]).filter(function(i){return i.cust===cust;});
+  var smp = (S.sample||[]).filter(function(i){return i.cust===cust&&!i.isDev;});
+  var dev = (S.sample||[]).filter(function(i){return i.cust===cust&&i.isDev;});
+  var allItems = [].concat(invEditData['delivery']||dlv)
+                   .concat(invEditData['sample']  ||smp)
+                   .concat(invEditData['dev']      ||dev);
+  registerBilling(cust, period, allItems);
+  // 청구 관리 탭으로 이동
+  var billingTab = document.querySelector('.tab[onclick*="billing"]');
+  if(billingTab) go('billing', billingTab);
 }
 
 // ── Excel 다운로드 (실제 명세서 포맷 그대로) ──────────
