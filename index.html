@@ -1609,7 +1609,7 @@ function calcPnL(){
     byS[it.cust]+=it.amount;
   });
   var custHtml='';
-  Object.keys(byS).sort(function(a,b){return byS[b]-byS[a]}).forEach(function(c){
+  Object.keys(byS).filter(function(k){return k&&k!=='undefined';}).sort(function(a,b){return byS[b]-byS[a]}).forEach(function(c){
     var s=byS[c];
     var sheetKey=cc(c).toUpperCase();
     var p=S.ek?S.ek.filter(function(i){return i.sheet.toUpperCase()===sheetKey}).reduce(function(s,i){return s+i.supply},0):0;
@@ -1861,10 +1861,10 @@ function renderInvArea(){
   document.getElementById('inv-area').style.display='block';
 
   var custSet={};
-  if(S.sales)  S.sales.forEach(function(it){custSet[it.cust]=1;});
-  if(S.sample) S.sample.forEach(function(it){custSet[it.cust]=1;});
+  if(S.sales)  S.sales.forEach(function(it){if(it.cust&&it.cust!=='undefined') custSet[it.cust]=1;});
+  if(S.sample) S.sample.forEach(function(it){if(it.cust&&it.cust!=='undefined') custSet[it.cust]=1;});
 
-  var pills=Object.keys(custSet).map(function(c){
+  var pills=Object.keys(custSet).filter(function(k){return k&&k!=='undefined';}).map(function(c){
     var on=S.selCust===c?' on':'';
     return'<button class="cust-pill'+on+'" onclick="selCust(\''+c.replace(/'/g,"\\'")+'\')">'+badge(c)+'</button>';
   }).join('');
@@ -2892,8 +2892,8 @@ function renderDashMonth(){
   var liveFx    = totalFixed();
   var liveProfit= liveRev - liveCogs - liveFx;
   var liveBySales = {};
-  if(S.sales)  S.sales.forEach(function(it){ if(!liveBySales[it.cust]) liveBySales[it.cust]=0; liveBySales[it.cust]+=it.amount; });
-  if(S.sample) S.sample.forEach(function(it){ if(!liveBySales[it.cust]) liveBySales[it.cust]=0; liveBySales[it.cust]+=it.amount; });
+  if(S.sales)  S.sales.forEach(function(it){ if(!it.cust||it.cust==='undefined') return; if(!liveBySales[it.cust]) liveBySales[it.cust]=0; liveBySales[it.cust]+=it.amount; });
+  if(S.sample) S.sample.forEach(function(it){ if(!it.cust||it.cust==='undefined') return; if(!liveBySales[it.cust]) liveBySales[it.cust]=0; liveBySales[it.cust]+=it.amount; });
   var hasLive = liveRev > 0;
 
   var yearKeys = allKeys.filter(function(k){return k.startsWith(yr+'-');});
