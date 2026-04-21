@@ -161,10 +161,14 @@ tbody tr:hover td{background:#fafafa}
       <div class="brand-sub">이케이아이엔티</div>
     </div>
   </div>
+  <div style="display:flex;align-items:center;gap:6px;margin-right:8px">
+    <button class="btn" style="font-size:11px;padding:5px 10px;background:#f0fdf4;color:#16a34a;border:1px solid #16a34a" onclick="injectTestData()">🧪 테스트</button>
+    <button class="btn" style="font-size:11px;padding:5px 10px" onclick="clearTestData()">🧹 초기화</button>
+  </div>
   <div class="hdr-right">
     <input type="month" id="g-period" onchange="onPeriodChange()">
     <button class="btn btn-ac" onclick="savePeriod()">💾 지금 저장</button>
-    <button class="btn" style="color:var(--rd);padding:8px 12px" onclick="deletePeriodData()" title="이 기간 저장 데이터 삭제">🗑️</button>
+    <button class="btn" style="color:#fff;background:var(--rd);padding:8px 14px;font-size:15px;border:none" onclick="deletePeriodData()" title="이 기간 데이터 초기화">🗑️</button>
   </div>
 </div>
 
@@ -247,7 +251,7 @@ tbody tr:hover td{background:#fafafa}
       <div class="card-badge" id="sales-detail-cnt"></div>
     </div>
     <table>
-      <thead><tr><th>거래처</th><th>품목명</th><th>품목코드</th><th class="r">수량</th><th class="r">출고단가</th><th class="r">공급가액</th></tr></thead>
+      <thead><tr><th>날짜</th><th>거래처</th><th>품목명</th><th>품목코드</th><th class="r">수량</th><th class="r">출고단가</th><th class="r">공급가액</th></tr></thead>
       <tbody id="tb-sales"></tbody>
     </table>
   </div>
@@ -259,7 +263,7 @@ tbody tr:hover td{background:#fafafa}
       <div class="card-badge" id="sample-detail-cnt"></div>
     </div>
     <table>
-      <thead><tr><th>거래처</th><th>품목명</th><th>품목코드</th><th class="r">수량</th><th class="r">단가</th><th class="r">공급가액</th><th>구분</th></tr></thead>
+      <thead><tr><th>날짜</th><th>거래처</th><th>품목명</th><th>품목코드</th><th class="r">수량</th><th class="r">단가</th><th class="r">공급가액</th><th>구분</th></tr></thead>
       <tbody id="tb-sample"></tbody>
     </table>
   </div>
@@ -370,7 +374,7 @@ tbody tr:hover td{background:#fafafa}
       <div class="card-t">🏢 고정비</div>
       <div style="display:flex;gap:6px">
         <button class="btn btn-sm" onclick="addFixed()">+ 항목 추가</button>
-        <button class="btn btn-sm" style="color:var(--rd)" onclick="if(confirm('고정비 항목을 모두 초기화할까요?')){S.fixed=[];renderFixed();localStorage.removeItem('ek_fixed');syncFixedToNotion();}">🗑️ 초기화</button>
+        <button class="btn btn-sm" style="color:var(--rd)" onclick="resetFixedCosts()">🗑️ 초기화</button>
       </div>
     </div>
     <div style="padding:14px 16px">
@@ -444,6 +448,13 @@ tbody tr:hover td{background:#fafafa}
   <!-- 공급자 정보 입력 -->
   <div style="background:var(--sf);border:1px solid var(--bd);border-radius:var(--rl);padding:14px 16px;margin-bottom:16px">
     <div style="font-size:12px;font-weight:700;color:var(--mu);letter-spacing:.04em;text-transform:uppercase;margin-bottom:12px">공급자 정보</div>
+    <div style="margin-bottom:10px;display:flex;align-items:center;gap:12px">
+      <div>
+        <div style="font-size:11px;color:var(--mu);font-weight:600;margin-bottom:4px">발행 날짜</div>
+        <input class="fci" type="date" id="inv-date" style="width:160px" oninput="updateInvDateDisplay()">
+      </div>
+      <div id="inv-date-display" style="font-size:13px;color:var(--mu);padding-top:18px"></div>
+    </div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr 2fr 2fr;gap:10px">
       <div>
         <div style="font-size:11px;color:var(--mu);font-weight:600;margin-bottom:4px">상호</div>
@@ -485,6 +496,7 @@ tbody tr:hover td{background:#fafafa}
         <div style="display:flex;gap:8px">
           <button class="btn btn-ac btn-sm" onclick="exportInv('xlsx')">📥 Excel</button>
           <button class="btn btn-sm" onclick="exportInv('print')">🖨️ 인쇄 / PDF</button>
+          <button class="btn btn-gr btn-sm" onclick="exportInv('xlsx');setTimeout(function(){exportInv('print');},500)">📥+🖨️ 동시 발행</button>
         </div>
       </div>
 
@@ -492,7 +504,7 @@ tbody tr:hover td{background:#fafafa}
       <div id="inv-sec-delivery" style="display:none">
         <div style="padding:10px 16px;background:#f0efff;border-bottom:1px solid var(--bd);font-size:12px;font-weight:700;color:var(--ac);letter-spacing:.04em">① 납품 내역</div>
         <table>
-          <thead><tr><th>No.</th><th>품목명</th><th>품목코드</th><th class="r">수량</th><th class="r">단가</th><th class="r">공급가액</th><th class="r">부가세</th><th class="r">합계</th></tr></thead>
+          <thead><tr><th>No.</th><th style="font-size:11px">날짜</th><th>품목명</th><th>품목코드</th><th class="r">수량</th><th class="r">단가</th><th class="r">공급가액</th><th class="r">부가세</th><th class="r">합계</th></tr></thead>
           <tbody id="tb-inv-delivery"></tbody>
         </table>
         <div style="padding:9px 16px;border-top:1px solid var(--bd);background:var(--sf);display:flex;justify-content:flex-end;gap:24px;font-size:12px;font-weight:600">
@@ -504,7 +516,7 @@ tbody tr:hover td{background:#fafafa}
       <div id="inv-sec-sample" style="display:none">
         <div style="padding:10px 16px;background:#f0fdf4;border-bottom:1px solid var(--bd);font-size:12px;font-weight:700;color:var(--gr);letter-spacing:.04em">② 샘플 비용</div>
         <table>
-          <thead><tr><th>No.</th><th>품목명</th><th>품목코드</th><th class="r">수량</th><th class="r">단가</th><th class="r">공급가액</th><th class="r">부가세</th><th class="r">합계</th></tr></thead>
+          <thead><tr><th>No.</th><th style="font-size:11px">날짜</th><th>품목명</th><th>품목코드</th><th class="r">수량</th><th class="r">단가</th><th class="r">공급가액</th><th class="r">부가세</th><th class="r">합계</th></tr></thead>
           <tbody id="tb-inv-sample"></tbody>
         </table>
         <div style="padding:9px 16px;border-top:1px solid var(--bd);background:var(--sf);display:flex;justify-content:flex-end;gap:24px;font-size:12px;font-weight:600">
@@ -516,7 +528,7 @@ tbody tr:hover td{background:#fafafa}
       <div id="inv-sec-dev" style="display:none">
         <div style="padding:10px 16px;background:#fffbeb;border-bottom:1px solid var(--bd);font-size:12px;font-weight:700;color:var(--am);letter-spacing:.04em">③ 개발비</div>
         <table>
-          <thead><tr><th>No.</th><th>품목명</th><th>품목코드</th><th class="r">수량</th><th class="r">단가</th><th class="r">공급가액</th><th class="r">부가세</th><th class="r">합계</th></tr></thead>
+          <thead><tr><th>No.</th><th style="font-size:11px">날짜</th><th>품목명</th><th>품목코드</th><th class="r">수량</th><th class="r">단가</th><th class="r">공급가액</th><th class="r">부가세</th><th class="r">합계</th></tr></thead>
           <tbody id="tb-inv-dev"></tbody>
         </table>
         <div style="padding:9px 16px;border-top:1px solid var(--bd);background:var(--sf);display:flex;justify-content:flex-end;gap:24px;font-size:12px;font-weight:600">
@@ -538,6 +550,20 @@ tbody tr:hover td{background:#fafafa}
         </div>
       </div>
 
+      <!-- ⑤ 선금 공제 섹션 -->
+      <div>
+        <div style="padding:10px 16px;background:#f0fdf4;border-bottom:1px solid var(--bd);border-top:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between">
+          <span style="font-size:12px;font-weight:700;color:var(--gr);letter-spacing:.04em">⑤ 선금 공제 <span style="font-size:10px;font-weight:400;color:var(--mu)">(마이너스 처리)</span></span>
+          <button class="btn btn-sm" onclick="addDepositRow()" style="padding:3px 10px;font-size:11px">+ 선금 항목 추가</button>
+        </div>
+        <div id="deposit-rows" style="padding:10px 16px">
+          <div style="font-size:12px;color:var(--hi)">원자재 선금 등 공제 항목이 있으면 위 버튼으로 추가하세요</div>
+        </div>
+        <div style="padding:9px 16px;border-top:1px solid var(--bd);background:var(--sf);display:flex;justify-content:flex-end;gap:24px;font-size:12px;font-weight:600">
+          <span style="color:var(--gr)">공제: <span id="inv-sub-deposit" style="color:var(--gr)">0원</span></span>
+        </div>
+      </div>
+
       <!-- 최종 합계 -->
       <div style="padding:16px;border-top:2px solid var(--bd2);background:var(--sf2)">
         <div style="display:flex;justify-content:flex-end;gap:32px;font-size:13px;align-items:baseline">
@@ -545,6 +571,7 @@ tbody tr:hover td{background:#fafafa}
           <span style="font-weight:600" id="inv-total-supply"></span>
           <span style="color:var(--mu)">부가세(10%)</span>
           <span style="font-weight:600" id="inv-total-vat"></span>
+          <span id="inv-deposit-line" style="display:none;color:var(--gr)">선금 공제 <span id="inv-total-deposit" style="font-weight:600"></span></span>
           <span style="font-size:16px;font-weight:800;color:var(--ac)">청구금액 <span id="inv-total-grand"></span></span>
         </div>
         <div style="margin-top:10px;font-size:12px;color:var(--mu);text-align:right" id="inv-acct-display"></div>
@@ -1121,7 +1148,8 @@ function renderSales(){
   // 파일 없고 저장 데이터 있으면 저장 데이터로 표시
   if(!S.sales||!S.sales.length){
     var period = document.getElementById('g-period').value;
-    var rec = period && JSON.parse(localStorage.getItem('ek_records')||'{}')[period];
+    try{ var rec = period && JSON.parse(localStorage.getItem('ek_records')||'{}')[period]; } catch(e){ var rec = null; }
+    rec = sanitizeRecord(rec);
     var byDlv = rec&&rec.byDelivery;
     if(byDlv && Object.keys(byDlv).length){
       var total = Object.keys(byDlv).reduce(function(s,k){return s+(byDlv[k].amount||0);},0);
@@ -1159,14 +1187,16 @@ function renderSales(){
   document.getElementById('sales-detail-card').style.display='block';
   document.getElementById('sales-detail-cnt').textContent=items.length+'개 품목 · '+won(total);
   var dhtml=items.map(function(it){
-    return'<tr><td>'+badge(it.cust)+'</td>'
-      +'<td style="max-width:210px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+it.prod+'</td>'
+    var dateStr=it.date?String(it.date).slice(0,10):'';
+    return'<tr><td style="font-size:11px;color:var(--mu);white-space:nowrap">'+dateStr+'</td>'
+      +'<td>'+badge(it.cust)+'</td>'
+      +'<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+it.prod+'</td>'
       +'<td style="font-size:11px;color:var(--mu)">'+it.pcode+'</td>'
       +'<td class="r">'+Math.round(it.qty)+'</td>'
       +'<td class="r">'+won(it.price)+'</td>'
       +'<td class="r">'+won(it.amount)+'</td></tr>';
   }).join('');
-  dhtml+='<tr class="tr-tot"><td colspan="5">합계</td><td class="r">'+won(total)+'</td></tr>';
+  dhtml+='<tr class="tr-tot"><td colspan="6">합계</td><td class="r">'+won(total)+'</td></tr>';
   document.getElementById('tb-sales').innerHTML=dhtml;
   renderInvArea();
 }
@@ -1177,8 +1207,9 @@ function renderSales(){
 function renderSample(){
   if(!S.sample||!S.sample.length){
     var period = document.getElementById('g-period').value;
-    var rec = period && JSON.parse(localStorage.getItem('ek_records')||'{}')[period];
-    var bySmp = rec&&rec.bySampleDev;
+    try{ var rec2 = period && JSON.parse(localStorage.getItem('ek_records')||'{}')[period]; } catch(e){ var rec2 = null; }
+    rec2 = sanitizeRecord(rec2);
+    var bySmp = rec2&&rec2.bySampleDev;
     if(bySmp && Object.keys(bySmp).length){
       var totProd = Object.keys(bySmp).reduce(function(s,k){return s+(bySmp[k].sample||0);},0);
       var totDev  = Object.keys(bySmp).reduce(function(s,k){return s+(bySmp[k].dev||0);},0);
@@ -1219,15 +1250,17 @@ function renderSample(){
     var typeBadge=it.isDev
       ?'<span class="b bWarn">개발비</span>'
       :'<span class="b bGood">샘플원가</span>';
-    return'<tr><td>'+badge(it.cust)+'</td>'
-      +'<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+it.prod+'</td>'
+    var dateStr=it.date?String(it.date).slice(0,10):'';
+    return'<tr><td style="font-size:11px;color:var(--mu);white-space:nowrap">'+dateStr+'</td>'
+      +'<td>'+badge(it.cust)+'</td>'
+      +'<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+it.prod+'</td>'
       +'<td style="font-size:11px;color:var(--mu)">'+it.pcode+'</td>'
       +'<td class="r">'+Math.round(it.qty)+'</td>'
       +'<td class="r">'+won(it.price)+'</td>'
       +'<td class="r">'+won(it.amount)+'</td>'
       +'<td>'+typeBadge+'</td></tr>';
   }).join('');
-  dhtml+='<tr class="tr-tot"><td colspan="5">합계</td><td class="r">'+won(totProd+totDev)+'</td><td></td></tr>';
+  dhtml+='<tr class="tr-tot"><td colspan="6">합계</td><td class="r">'+won(totProd+totDev)+'</td><td></td></tr>';
   document.getElementById('tb-sample').innerHTML=dhtml;
   renderInvArea();
 }
@@ -1307,6 +1340,36 @@ function renderPurchase(){
 // ─────────────────────────────────────────
 //  Fixed costs
 // ─────────────────────────────────────────
+async function resetFixedCosts(){
+  if(!confirm('고정비 항목을 모두 초기화할까요?\nNotion에서도 삭제됩니다.')) return;
+  S.fixed = [];
+  localStorage.removeItem('ek_fixed');
+  renderFixed();
+  toast('고정비 초기화 중...','ok');
+  // Notion 기존 항목 전부 삭제
+  try{
+    var qResp = await fetch(NOTION_PROXY+'/databases/'+NOTION_FIXED_DB+'/query',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'},
+      body:JSON.stringify({page_size:100})
+    });
+    if(qResp.ok){
+      var qData = await qResp.json();
+      for(var i=0;i<(qData.results||[]).length;i++){
+        await fetch(NOTION_PROXY+'/pages/'+qData.results[i].id,{
+          method:'PATCH',
+          headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'},
+          body:JSON.stringify({archived:true})
+        });
+      }
+    }
+    document.getElementById('notion-sync-status').textContent='✅ 고정비 초기화 완료';
+    toast('고정비 초기화 완료','ok');
+  }catch(e){
+    toast('Notion 삭제 실패: '+e.message,'err');
+  }
+}
+
 function addFixed(){S.fixed.push({label:'',amount:0});renderFixed();saveFixed();}
 var _fixedLoading = false; // 로드 중 sync 방지 플래그
 
@@ -1490,8 +1553,7 @@ function calcPnL(){
     gross = rev - cogs;
     op    = gross - fx;
     cogsR = rev>0 ? cogs/rev*100 : 0;
-    // 원가 내역은 저장 안되므로 합계만 표시
-    ekCogs = cogs; // 원가 합계로 표시
+    // 저장데이터는 원가 내역 구분 없이 합계만 있음
   } else {
     // ── 실시간 파일 데이터 계산 ──
     revDelivery = totalSalesDelivery();
@@ -1573,7 +1635,7 @@ function calcPnL(){
     {label:'③ 개발비 청구 (매출)',  val:revDev,      note:'견적서현황 — 개발비 항목',        bold:false, sub:true},
     {label:'= 총 매출액',           val:rev,         note:'',                                bold:true,  sub:false},
     {label:'(-) 지출내역 원가',     val:expCogs,     note:'월말 청구내역서 (운송·부자재 등)', bold:false, sub:true},
-    {label:'(-) EK정산 원가',       val:ekCogs,      note:'통합EK정산 공급가액',              bold:false, sub:true},
+    {label: (!hasLiveData&&rec) ? '(-) 매입원가 합계' : '(-) EK정산 원가', val:ekCogs, note: (!hasLiveData&&rec) ? '저장된 원가 합계' : '통합EK정산 공급가액', bold:false, sub:true},
     {label:'(-) 중국 인보이스',     val:cnCogs,      note:'USD × '+rate+'원',                bold:false, sub:true},
     {label:'(-) 직접 입력 원가',    val:manCogs,     note:'수동 입력',                        bold:false, sub:true},
     {label:'= 매출 총이익',         val:gross,       note:'',                                bold:true,  sub:false},
@@ -1593,15 +1655,57 @@ function calcPnL(){
 
 function deletePeriodData(){
   var period = document.getElementById('g-period').value;
-  if(!period){ toast('기간을 선택해주세요','err'); return; }
-  if(!confirm(period+' 저장 데이터를 삭제할까요?\n(업로드된 파일 데이터는 유지됩니다)')) return;
+  if(!period){ toast('기간을 선택해주세요 (월 선택 필요)','err'); return; }
+
   var db = JSON.parse(localStorage.getItem('ek_records')||'{}');
-  if(!db[period]){ toast(period+' 저장된 데이터가 없습니다','err'); return; }
-  delete db[period];
-  localStorage.setItem('ek_records', JSON.stringify(db));
+  var keys = Object.keys(db);
+  var hasSaved = !!db[period];
+  var hasLive = !!(S.sales||S.sample||S.ek||S.exp||(S.cnList&&S.cnList.length));
+
+  // 저장된 모든 키와 현재 period를 confirm에 표시해서 진단
+  var msg = '['+period+'] 데이터를 삭제할까요?\n'
+    + '저장된 기간 목록: '+(keys.length?keys.join(', '):'없음')+'\n'
+    + '매칭: '+(hasSaved?'있음':'없음')+' / 현재 파일: '+(hasLive?'있음':'없음');
+  if(!confirm(msg)) return;
+
+  // 저장 데이터 삭제
+  if(hasSaved){
+    delete db[period];
+    localStorage.setItem('ek_records', JSON.stringify(db));
+  }
+
+  // 현재 세션 데이터 완전 초기화
+  S.sales=null; S.sample=null; S.ek=null; S.exp=null;
+  S.cn=null; S.cnList=[]; S.manual=[];
+
+  // 업로드 박스 리셋
+  ['sales','sample','ek','exp','cn'].forEach(function(t){
+    var dz=document.getElementById('dz-'+t);
+    var ico=document.getElementById('i-'+t);
+    var st=document.getElementById('s-'+t);
+    var fi=document.getElementById('fi-'+t);
+    if(dz) dz.classList.remove('ok');
+    if(ico) ico.textContent='📤';
+    if(st) st.textContent='';
+    if(fi) fi.value='';
+  });
+
+  renderSales();
+  renderSample();
+  renderPurchase();
+  renderManual();
   renderSavedSummary(period);
+  renderInvArea();
+
+  // 손익 탭 초기화
+  ['p-rev','p-cogs','p-fx','p-profit','p-ratio'].forEach(function(id){
+    var el=document.getElementById(id); if(el) el.textContent='—';
+  });
+  var sub=document.getElementById('p-rev-s'); if(sub) sub.textContent='';
+  var bar=document.getElementById('p-bar'); if(bar) bar.style.width='0%';
+
   renderDash();
-  toast('🗑️ '+period+' 데이터 삭제 완료','ok');
+  toast('🗑️ '+period+' 초기화 완료','ok');
 }
 
 function copyPnL(){
@@ -1630,6 +1734,52 @@ function copyPnL(){
 // ─────────────────────────────────────────
 //  Invoice
 // ─────────────────────────────────────────
+var S_deposit = [];
+
+function addDepositRow(){
+  S_deposit.push({label:'원자재 선금',amount:0});
+  renderDepositRows();
+}
+
+function renderDepositRows(){
+  var el=document.getElementById('deposit-rows');
+  if(!el) return;
+  if(!S_deposit.length){
+    el.innerHTML='<div style="font-size:12px;color:var(--hi)">원자재 선금 등 공제 항목이 있으면 위 버튼으로 추가하세요</div>';
+    document.getElementById('inv-sub-deposit').textContent='0원';
+    calcGrandTotal();
+    return;
+  }
+  el.innerHTML=S_deposit.map(function(m,i){
+    return '<div style="display:grid;grid-template-columns:130px 1fr 160px 36px;gap:8px;align-items:center;margin-bottom:6px">'
+      +'<input class="fci" type="date" value="'+(m.date||'')+'" oninput="S_deposit['+i+'].date=this.value" placeholder="날짜">'
+      +'<input class="fci" placeholder="공제 항목명 (예: 원자재 선금)" value="'+m.label+'" oninput="S_deposit['+i+'].label=this.value">'
+      +'<input class="fci" type="number" placeholder="공제 금액 (원)" value="'+(m.amount||'')+'" oninput="S_deposit['+i+'].amount=parseFloat(this.value)||0;updateDepositTotal()">'
+      +'<button class="fc-del" onclick="S_deposit.splice('+i+',1);renderDepositRows()">×</button>'
+      +'</div>';
+  }).join('');
+  updateDepositTotal();
+}
+
+function updateDepositTotal(){
+  var t=S_deposit.reduce(function(s,m){return s+(m.amount||0);},0);
+  var el=document.getElementById('inv-sub-deposit');
+  if(el) el.textContent=won(t);
+  calcGrandTotal();
+}
+
+function updateInvDateDisplay(){
+  var val=document.getElementById('inv-date').value;
+  var el=document.getElementById('inv-date-display');
+  if(!el) return;
+  if(val){
+    var d=new Date(val);
+    el.textContent=d.getFullYear()+'년 '+(d.getMonth()+1)+'월 '+d.getDate()+'일';
+  } else {
+    el.textContent='';
+  }
+}
+
 var S_as = [];
 
 function addAsRow(){
@@ -1668,10 +1818,23 @@ function calcGrandTotal(){
     if(el&&el.dataset.raw) supply+=parseFloat(el.dataset.raw)||0;
   });
   supply+=S_as.reduce(function(s,m){return s+(m.qty||0)*(m.price||0);},0);
+  // 선금 공제
+  var depositTotal=S_deposit.reduce(function(s,m){return s+(m.amount||0);},0);
   var vat=Math.round(supply*0.1);
+  var grandTotal=supply+vat-depositTotal;
   document.getElementById('inv-total-supply').textContent=won(supply);
   document.getElementById('inv-total-vat').textContent=won(vat);
-  document.getElementById('inv-total-grand').textContent=won(supply+vat);
+  document.getElementById('inv-total-grand').textContent=won(grandTotal);
+  // 선금 공제 표시
+  var depositLine=document.getElementById('inv-deposit-line');
+  if(depositLine){
+    if(depositTotal>0){
+      depositLine.style.display='';
+      document.getElementById('inv-total-deposit').textContent='(-) '+won(depositTotal);
+    } else {
+      depositLine.style.display='none';
+    }
+  }
   var acct=document.getElementById('inv-acct').value||'';
   document.getElementById('inv-acct-display').innerHTML=acct?'입금계좌: <b>'+acct+'</b>':'';
 }
@@ -1701,7 +1864,7 @@ function renderInvArea(){
   else document.getElementById('inv-preview').style.display='none';
 }
 
-function selCust(c){ S.selCust=c; S_as=[]; invEditData={}; renderInvArea(); }
+function selCust(c){ S.selCust=c; S_as=[]; S_deposit=[]; invEditData={}; renderInvArea(); }
 
 function invRows(items, offset, secKey){
   return items.map(function(it,idx){
@@ -1710,8 +1873,10 @@ function invRows(items, offset, secKey){
     var sup   = Math.round(qty * price);
     var vat   = Math.round(sup * 0.1);
     var gi    = offset + idx;
+    var invRowDate = it.date ? String(it.date).slice(0,10) : '';
     return '<tr id="inv-row-'+secKey+'-'+gi+'">'
       +'<td style="color:var(--mu);font-size:12px">'+(gi+1)+'</td>'
+      +'<td style="font-size:11px;color:var(--mu);white-space:nowrap">'+invRowDate+'</td>'
       +'<td>'+it.prod+'</td>'
       +'<td style="font-size:11px;color:var(--mu)">'+it.pcode+'</td>'
       +'<td class="r"><input type="number" value="'+qty+'" min="0"'
@@ -1820,6 +1985,7 @@ function renderInvPreview(cust){
   setSection('inv-sec-sample',  'tb-inv-sample',  'inv-sub-sample',   smp, 0);
   setSection('inv-sec-dev',     'tb-inv-dev',     'inv-sub-dev',      dev, 0);
   renderAsRows();
+  renderDepositRows();
   calcGrandTotal();
 }
 
@@ -1830,6 +1996,7 @@ function exportInv(mode){
 
   var cust   = S.selCust;
   var period = document.getElementById('g-period').value||'';
+  var invDateVal = document.getElementById('inv-date')?document.getElementById('inv-date').value:'';
   var co     = document.getElementById('inv-co').value  ||'이케이아이엔티';
   var biz    = document.getElementById('inv-biz').value ||'708-81-01024';
   var mgr    = document.getElementById('inv-mgr').value ||'';
@@ -1849,7 +2016,7 @@ function exportInv(mode){
 
   // 공급자/수신 정보
   aoa.push(['공급자: '+co,         null,null,null,'수신: '+cust,      null,null,null]);
-  aoa.push(['사업자번호: '+biz,     null,null,null,'기간: '+period,     null,null,null]);
+  aoa.push(['사업자번호: '+biz,     null,null,null,'기간: '+period+(invDateVal?' | 발행일: '+invDateVal:''),     null,null,null]);
   aoa.push(['대표자: '+mgr+'   |   사업장주소: '+addr, null,null,null,null,null,null,null]);
   aoa.push(['입금계좌: '+acct,      null,null,null,null,null,null,null]);
   aoa.push([null,null,null,null,null,null,null,null]);
@@ -1860,7 +2027,7 @@ function exportInv(mode){
     if(!items||!items.length) return;
     var editItems = invEditData[secKey] || items;
     aoa.push([sectionTitle,null,null,null,null,null,null,null,null]);
-    aoa.push(['No.','품목명','품목코드','수량','단가','공급가액','부가세(10%)','합계','비고']);
+    aoa.push(['No.','날짜','품목명','품목코드','수량','단가','공급가액','부가세(10%)','합계','비고']);
     var secTotal=0;
     editItems.forEach(function(it){
       rowNum++;
@@ -1869,7 +2036,7 @@ function exportInv(mode){
       var sup=Math.round(qty*price);
       var vat=Math.round(sup*0.1);
       secTotal+=sup;
-      aoa.push([rowNum, it.prod, it.pcode, Math.round(qty), Math.round(price), sup, vat, sup+vat, it.note||'']);
+      aoa.push([rowNum, it.date?String(it.date).slice(0,10):'', it.prod, it.pcode, Math.round(qty), Math.round(price), sup, vat, sup+vat, it.note||'']);
     });
     var sv=Math.round(secTotal*0.1);
     aoa.push([null,null,null,null,'소  계', secTotal, sv, secTotal+sv, null]);
@@ -1898,14 +2065,29 @@ function exportInv(mode){
     grandSupply+=asTotal;
   }
 
+  // 선금 공제 섹션
+  var depositTotal = S_deposit.reduce(function(s,m){return s+(m.amount||0);},0);
+  if(S_deposit.length){
+    aoa.push(['⑤ 선금 공제',null,null,null,null,null,null,null,null]);
+    aoa.push(['No.','항목명',null,null,null,'공제 금액',null,null,null]);
+    S_deposit.forEach(function(m,i){
+      aoa.push([i+1, m.date||'', m.label, null, null, -(m.amount||0), null, -(m.amount||0), '선금공제']);
+    });
+    aoa.push([null,null,null,null,'선금 공제 합계', -depositTotal, null, -depositTotal, null]);
+    aoa.push([null,null,null,null,null,null,null,null,null]);
+  }
+
   // 최종 합계
   var grandVat=Math.round(grandSupply*0.1);
-  aoa.push([null,null,null,null,'합   계', grandSupply, grandVat, grandSupply+grandVat, null]);
+  var grandFinal = grandSupply+grandVat-depositTotal;
+  aoa.push([null,null,null,null,'공급가 합계', grandSupply, grandVat, grandSupply+grandVat, null]);
+  if(depositTotal>0) aoa.push([null,null,null,null,'선금 공제', -depositTotal, null, -depositTotal, null]);
+  aoa.push([null,null,null,null,'최종 청구금액', null, null, grandFinal, null]);
 
   // XLSX 생성
   var wb2=XLSX.utils.book_new();
   var ws=XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols']=[{wch:5},{wch:36},{wch:15},{wch:7},{wch:12},{wch:13},{wch:12},{wch:14},{wch:16}];
+  ws['!cols']=[{wch:5},{wch:12},{wch:32},{wch:14},{wch:7},{wch:12},{wch:13},{wch:12},{wch:14},{wch:16}];
 
   // 타이틀 병합 (9컬럼 기준)
   ws['!merges']=[
@@ -1933,6 +2115,8 @@ function exportInv(mode){
 function printInv(){
   var cust   = S.selCust;
   var period = document.getElementById('g-period').value||'';
+  var invDateVal = document.getElementById('inv-date')?document.getElementById('inv-date').value:'';
+  var invDateStr = invDateVal ? (function(){ var d=new Date(invDateVal); return d.getFullYear()+'년 '+(d.getMonth()+1)+'월 '+d.getDate()+'일'; })() : '';
   var co     = document.getElementById('inv-co').value||'이케이아이엔티';
   var biz    = document.getElementById('inv-biz').value||'708-81-01024';
   var mgr    = document.getElementById('inv-mgr').value||'';
@@ -1948,7 +2132,8 @@ function printInv(){
     var rows=items.map(function(it,idx){
       var sup=Math.round(it.amount||((it.qty||0)*(it.price||0)));
       var vat=Math.round(sup*0.1);
-      return'<tr><td>'+(idx+1)+'</td><td>'+it.prod+'</td><td>'+it.pcode+'</td>'
+      var pdfDate=it.date?String(it.date).slice(0,10):'';
+      return'<tr><td>'+(idx+1)+'</td><td style="font-size:9pt;color:#666">'+pdfDate+'</td><td>'+it.prod+'</td><td>'+it.pcode+'</td>'
         +'<td>'+Math.round(it.qty||0)+'</td>'
         +'<td>'+Math.round(it.price||0).toLocaleString()+'</td>'
         +'<td>'+sup.toLocaleString()+'</td>'
@@ -1958,7 +2143,7 @@ function printInv(){
     var tot=items.reduce(function(s,i){return s+Math.round(i.amount||((i.qty||0)*(i.price||0)));},0);
     var tv=Math.round(tot*0.1);
     return'<div class="sec-title '+colorCls+'">'+title+'</div>'
-      +'<table><thead><tr><th>No.</th><th>품목명</th><th>품목코드</th><th>수량</th><th>단가</th><th>공급가액</th><th>부가세</th><th>합계</th></tr></thead>'
+      +'<table><thead><tr><th>No.</th><th>날짜</th><th>품목명</th><th>품목코드</th><th>수량</th><th>단가</th><th>공급가액</th><th>부가세</th><th>합계</th></tr></thead>'
       +'<tbody>'+rows+'<tr class="subtotal"><td colspan="5">소  계</td><td>'+tot.toLocaleString()+'</td><td>'+tv.toLocaleString()+'</td><td>'+(tot+tv).toLocaleString()+'</td></tr>'
       +'</tbody></table>';
   }
@@ -2024,6 +2209,7 @@ function printInv(){
     +(addr?'<div class="meta-row"><span class="meta-lbl">주소</span><span class="meta-val">'+addr+'</span></div>':'')
     +'<div class="meta-row"><span class="meta-lbl">수신</span><span class="meta-val">'+cust+'</span></div>'
     +'<div class="meta-row"><span class="meta-lbl">기간</span><span class="meta-val">'+period+'</span></div>'
+    +(invDateStr?'<div class="meta-row"><span class="meta-lbl">발행일</span><span class="meta-val">'+invDateStr+'</span></div>':'')
     +'</div>'
     +tblHtml('① 납품 내역', dlv, 'sec-dlv')
     +tblHtml('② 샘플 비용', smp, 'sec-smp')
@@ -2037,18 +2223,82 @@ function printInv(){
     +'<div class="acct">입금계좌: <b>'+acct+'</b></div>'
     +'</body></html>';
 
-  // Blob URL 방식으로 새 탭 열기 (샌드박스 환경 호환)
-  var blob = new Blob([html], {type:'text/html;charset=utf-8'});
+  // 모달 미리보기 + 인쇄/PDF 다운로드
+  showPrintPreview(html, cust, period);
+}
+
+function showPrintPreview(html, cust, period){
+  window._printHtml = html;
+  window._printCust = cust;
+  window._printPeriod = period;
+
+  var oldModal = document.getElementById('print-preview-modal');
+  if(oldModal) oldModal.remove();
+
+  var modal = document.createElement('div');
+  modal.id = 'print-preview-modal';
+  modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;overflow-y:auto;padding:20px 0';
+
+  var bar = document.createElement('div');
+  bar.style.cssText = 'width:860px;max-width:95vw;display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;background:#fff;border-radius:10px;padding:10px 16px;box-shadow:0 2px 12px rgba(0,0,0,0.15)';
+
+  var titleEl = document.createElement('span');
+  titleEl.style.cssText = 'font-size:14px;font-weight:700;color:#333';
+  titleEl.textContent = '\uD83D\uDCC4 거래명세서 미리보기 \u2014 ' + cust;
+
+  var btnGroup = document.createElement('div');
+  btnGroup.style.cssText = 'display:flex;gap:8px';
+
+  var btnPrint = document.createElement('button');
+  btnPrint.textContent = '인쇄 / PDF 저장';
+  btnPrint.style.cssText = 'background:#4f46e5;color:#fff;border:none;padding:8px 16px;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer';
+  btnPrint.addEventListener('click', function(){ invoicePrint(); });
+
+  var btnDl = document.createElement('button');
+  btnDl.textContent = 'HTML 저장';
+  btnDl.style.cssText = 'background:#16a34a;color:#fff;border:none;padding:8px 16px;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer';
+  btnDl.addEventListener('click', function(){ doDownloadHtml(); });
+
+  var btnClose = document.createElement('button');
+  btnClose.textContent = 'X 닫기';
+  btnClose.style.cssText = 'background:#f1f5f9;color:#333;border:none;padding:8px 14px;border-radius:7px;font-size:13px;cursor:pointer';
+  btnClose.addEventListener('click', function(){ modal.remove(); });
+
+  btnGroup.appendChild(btnPrint);
+  btnGroup.appendChild(btnDl);
+  btnGroup.appendChild(btnClose);
+  bar.appendChild(titleEl);
+  bar.appendChild(btnGroup);
+
+  var iframe = document.createElement('iframe');
+  iframe.id = 'print-preview-iframe';
+  iframe.style.cssText = 'width:860px;max-width:95vw;min-height:80vh;background:#fff;border:none;border-radius:10px;box-shadow:0 4px 24px rgba(0,0,0,0.18)';
+  iframe.srcdoc = html;
+
+  modal.appendChild(bar);
+  modal.appendChild(iframe);
+  document.body.appendChild(modal);
+  modal.addEventListener('click', function(e){ if(e.target===modal) modal.remove(); });
+}
+function invoicePrint(){
+  var iframe = document.getElementById('print-preview-iframe');
+  if(iframe && iframe.contentWindow){
+    iframe.contentWindow.focus();
+    iframe.contentWindow.print();
+  }
+}
+
+function doDownloadHtml(){
+  var blob = new Blob([window._printHtml||''], {type:'text/html;charset=utf-8'});
   var url  = URL.createObjectURL(blob);
   var a    = document.createElement('a');
   a.href   = url;
-  a.target = '_blank';
-  a.rel    = 'noopener';
+  a.download = '거래명세서_'+(window._printCust||'')+'_'+(window._printPeriod||'')+'.html';
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  setTimeout(function(){ URL.revokeObjectURL(url); }, 10000);
-  toast('새 창에서 인쇄(Ctrl+P) 또는 PDF로 저장하세요','ok');
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 5000);
+  toast('HTML 저장 완료 — 브라우저에서 열고 Ctrl+P로 PDF 저장하세요','ok');
 }
 
 // ─────────────────────────────────────────
@@ -2073,72 +2323,97 @@ function autoSyncNotion(){
 //  Period change — 월 변경 시 저장 데이터 표시
 // ─────────────────────────────────────────
 function renderSavedSummary(period){
-  var db  = JSON.parse(localStorage.getItem('ek_records')||'{}');
-  var rec = db[period];
   var card = document.getElementById('saved-summary-card');
-  if(!rec){ card.style.display='none'; return; }
+  if(!card) return;
+  try{
+    var db  = JSON.parse(localStorage.getItem('ek_records')||'{}');
+    var rec = db[period];
+    if(!rec){ card.style.display='none'; return; }
 
-  card.style.display='block';
-  document.getElementById('saved-summary-period').textContent = period;
-
-  var op    = rec.rev - rec.cogs - (rec.fixed||0);
-  var ratio = rec.ratio||0;
-  var opColor = op>=0?'var(--gr)':'var(--rd)';
-
-  // 납품 내역 테이블
-  var dlvRows = '';
-  var byDlv = rec.byDelivery||{};
-  Object.keys(byDlv).filter(function(k){return k&&k!=='undefined';})
-    .sort(function(a,b){ return (byDlv[b].amount||0)-(byDlv[a].amount||0); })
-    .forEach(function(cust){
-      var d = byDlv[cust]||{};
-      dlvRows += '<tr><td>'+badge(cust)+'</td><td class="r">'+Math.round(d.qty||0)+'</td><td class="r">'+won(d.amount||0)+'</td></tr>';
+    // 안전 처리
+    if(!rec.bySales) rec.bySales={};
+    if(!rec.byDelivery) rec.byDelivery={};
+    if(!rec.bySampleDev) rec.bySampleDev={};
+    ['bySales','byDelivery','bySampleDev'].forEach(function(key){
+      Object.keys(rec[key]).forEach(function(k){
+        if(!k||k==='undefined'||k==='null') delete rec[key][k];
+      });
     });
 
-  // 샘플·개발비 테이블
-  var smpRows = '';
-  var bySmp = rec.bySampleDev||{};
-  Object.keys(bySmp).filter(function(k){return k&&k!=='undefined';})
-    .sort(function(a,b){ return ((bySmp[b].sample||0)+(bySmp[b].dev||0))-((bySmp[a].sample||0)+(bySmp[a].dev||0)); })
-    .forEach(function(cust){
-      var d = bySmp[cust]||{};
-      smpRows += '<tr><td>'+badge(cust)+'</td><td class="r">'+won(d.sample||0)+'</td><td class="r">'+won(d.dev||0)+'</td><td class="r">'+won((d.sample||0)+(d.dev||0))+'</td></tr>';
-    });
+    card.style.display='block';
+    document.getElementById('saved-summary-period').textContent = period;
 
-  // 구버전 fallback (byDelivery 없는 경우)
-  if(!dlvRows && !smpRows){
-    var byS = rec.bySales||{};
-    Object.keys(byS).filter(function(k){return k&&k!=='undefined';})
-      .sort(function(a,b){
-        var va = byS[a]&&typeof byS[a]==='object'?(byS[a].amount||0):(byS[a]||0);
-        var vb = byS[b]&&typeof byS[b]==='object'?(byS[b].amount||0):(byS[b]||0);
-        return vb-va;
-      }).forEach(function(cust){
+    var op    = (rec.rev||0) - (rec.cogs||0) - (rec.fixed||0);
+    var ratio = rec.ratio||0;
+    var opColor = op>=0?'var(--gr)':'var(--rd)';
+
+    // 납품 내역
+    var dlvRows = '';
+    var byDlv = rec.byDelivery;
+    Object.keys(byDlv).sort(function(a,b){ return ((byDlv[b]&&byDlv[b].amount)||0)-((byDlv[a]&&byDlv[a].amount)||0); })
+      .forEach(function(cust){
+        if(!cust) return;
+        var d = byDlv[cust]||{};
+        dlvRows += '<tr><td>'+badge(cust)+'</td><td class="r">'+Math.round(d.qty||0)+'</td><td class="r">'+won(d.amount||0)+'</td></tr>';
+      });
+
+    // 샘플·개발비
+    var smpRows = '';
+    var bySmp = rec.bySampleDev;
+    Object.keys(bySmp).sort(function(a,b){
+      var va=(bySmp[a]?(bySmp[a].sample||0)+(bySmp[a].dev||0):0);
+      var vb=(bySmp[b]?(bySmp[b].sample||0)+(bySmp[b].dev||0):0);
+      return vb-va;
+    }).forEach(function(cust){
+        if(!cust) return;
+        var d = bySmp[cust]||{};
+        smpRows += '<tr><td>'+badge(cust)+'</td><td class="r">'+won(d.sample||0)+'</td><td class="r">'+won(d.dev||0)+'</td><td class="r">'+won((d.sample||0)+(d.dev||0))+'</td></tr>';
+      });
+
+    // fallback
+    if(!dlvRows && !smpRows){
+      var byS = rec.bySales;
+      Object.keys(byS).forEach(function(cust){
+        if(!cust) return;
         var amt = byS[cust]&&typeof byS[cust]==='object'?(byS[cust].amount||0):(byS[cust]||0);
         dlvRows += '<tr><td>'+badge(cust)+'</td><td class="r">—</td><td class="r">'+won(amt)+'</td></tr>';
       });
-  }
+    }
 
-  var html = '';
-  // KPI 4개
-  html += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">';
-  html += '<div class="met"><div class="met-lbl">총 매출</div><div class="met-val">'+won(rec.rev)+'</div><div class="met-sub">납품 '+won(rec.revD||0)+'</div></div>';
-  html += '<div class="met"><div class="met-lbl">샘플·개발비</div><div class="met-val">'+won((rec.revS||0)+(rec.revDev||0))+'</div><div class="met-sub">샘플 '+won(rec.revS||0)+' / 개발비 '+won(rec.revDev||0)+'</div></div>';
-  html += '<div class="met"><div class="met-lbl">매입원가</div><div class="met-val">'+won(rec.cogs)+'</div><div class="met-sub">원가율 '+ratio+'%</div></div>';
-  html += '<div class="met"><div class="met-lbl">영업이익</div><div class="met-val" style="color:'+opColor+'">'+won(op)+'</div><div class="met-sub">고정비 '+won(rec.fixed||0)+'</div></div>';
-  html += '</div>';
-  // 납품 내역
-  if(dlvRows){
-    html += '<div style="font-size:11px;font-weight:700;color:var(--mu);letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">① 납품 매출</div>';
-    html += '<table style="margin-bottom:14px"><thead><tr><th>거래처</th><th class="r">수량</th><th class="r">공급가액</th></tr></thead><tbody>'+dlvRows+'</tbody></table>';
+    var html = '';
+    html += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">';
+    html += '<div class="met"><div class="met-lbl">총 매출</div><div class="met-val">'+won(rec.rev||0)+'</div><div class="met-sub">납품 '+won(rec.revD||0)+'</div></div>';
+    html += '<div class="met"><div class="met-lbl">샘플·개발비</div><div class="met-val">'+won((rec.revS||0)+(rec.revDev||0))+'</div><div class="met-sub">샘플 '+won(rec.revS||0)+' / 개발비 '+won(rec.revDev||0)+'</div></div>';
+    html += '<div class="met"><div class="met-lbl">매입원가</div><div class="met-val">'+won(rec.cogs||0)+'</div><div class="met-sub">원가율 '+ratio+'%</div></div>';
+    html += '<div class="met"><div class="met-lbl">영업이익</div><div class="met-val" style="color:'+opColor+'">'+won(op)+'</div><div class="met-sub">고정비 '+won(rec.fixed||0)+'</div></div>';
+    html += '</div>';
+    if(dlvRows){
+      html += '<div style="font-size:11px;font-weight:700;color:var(--mu);margin-bottom:6px">① 납품 매출</div>';
+      html += '<table style="margin-bottom:14px"><thead><tr><th>거래처</th><th class="r">수량</th><th class="r">공급가액</th></tr></thead><tbody>'+dlvRows+'</tbody></table>';
+    }
+    if(smpRows){
+      html += '<div style="font-size:11px;font-weight:700;color:var(--mu);margin-bottom:6px">② 샘플·개발비</div>';
+      html += '<table><thead><tr><th>거래처</th><th class="r">샘플원가</th><th class="r">개발비</th><th class="r">소계</th></tr></thead><tbody>'+smpRows+'</tbody></table>';
+    }
+    document.getElementById('saved-summary-body').innerHTML = html;
+  }catch(e){
+    console.warn('renderSavedSummary error:', e.message);
+    if(card) card.style.display='none';
   }
-  // 샘플·개발비
-  if(smpRows){
-    html += '<div style="font-size:11px;font-weight:700;color:var(--mu);letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">② 샘플·개발비</div>';
-    html += '<table><thead><tr><th>거래처</th><th class="r">샘플원가</th><th class="r">개발비</th><th class="r">소계</th></tr></thead><tbody>'+smpRows+'</tbody></table>';
-  }
+}
 
-  document.getElementById('saved-summary-body').innerHTML = html;
+function sanitizeRecord(rec){
+  if(!rec) return rec;
+  ['bySales','byDelivery','bySampleDev'].forEach(function(key){
+    if(!rec[key]) return;
+    var cleaned = {};
+    Object.keys(rec[key]).forEach(function(k){
+      if(!k || k==='undefined' || k==='null') return;
+      cleaned[k] = rec[key][k];
+    });
+    rec[key] = cleaned;
+  });
+  return rec;
 }
 
 function onPeriodChange(){
@@ -2699,6 +2974,10 @@ function loadBilling(){
 
 function renderBilling(){
   loadBilling();
+  // 손상된 데이터 필터링
+  var origLen = S.billing.length;
+  S.billing = S.billing.filter(function(b){ return b && b.cust && b.period; });
+  if(S.billing.length !== origLen) saveBilling(); // 손상 항목 제거 시 저장
   var list = S.billing;
   var empty = document.getElementById('billing-empty');
   var wrap  = document.getElementById('billing-table-wrap');
@@ -2773,7 +3052,7 @@ function clearBilling(){
 }
 
 async function syncBillingToNotion(){
-  if(!S.billing.length){ toast('청구 데이터가 없습니다','err'); return; }
+  if(!S.billing.length) return;
   var nc={};
   var BILLING_DB = NOTION_BILLING_DB;
   try{
@@ -2901,6 +3180,127 @@ async function notionSave(){
   }catch(e){
     toast('Notion 저장: 채팅창에 직접 요청해주세요 (토큰 미설정)','ok');
   }
+}
+
+
+// ─────────────────────────────────────────
+//  🧪 TEST MODE — 랜덤 데이터 주입
+// ─────────────────────────────────────────
+function injectTestData(){
+  // 기존 손상 데이터 정리
+  try{
+    var db=JSON.parse(localStorage.getItem('ek_records')||'{}');
+    Object.keys(db).forEach(function(k){
+      ['bySales','byDelivery','bySampleDev'].forEach(function(f){
+        if(db[k][f]){ delete db[k][f]['undefined']; delete db[k][f]['null']; delete db[k][f]['']; }
+      });
+    });
+    localStorage.setItem('ek_records',JSON.stringify(db));
+  }catch(e){}
+  var custs = ['주식회사제이스바이브','바이위캔드','파르테즈','토우토우','윙블링'];
+  var prods = ['L 굴곡면 원터치 귀걸이','S 파이 원터치 이어링','M 통통 원터치 귀걸이','개발비 2종','샘플 시제품'];
+  var pcodes= ['VTES102902','VTES072601','VTES072602','VTES120401','VTES120402'];
+
+  function rnd(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
+  function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+
+  // ── 납품 매출 (S.sales)
+  var sales = [];
+  for(var i=0;i<30;i++){
+    var idx=rnd(0,4);
+    var qty=rnd(5,80), price=rnd(15000,45000);
+    sales.push({
+      date:'2026-04-'+String(rnd(1,30)).padStart(2,'0'),
+      cust:pick(custs), prod:prods[idx], pcode:pcodes[idx],
+      qty:qty, price:price, amount:qty*price, memo:''
+    });
+  }
+  S.sales = sales;
+
+  // ── 샘플·개발비 (S.sample)
+  var sample = [];
+  for(var i=0;i<10;i++){
+    var isDev = i<3;
+    var amt = rnd(50000,500000);
+    sample.push({
+      date:'2026-04-'+String(rnd(1,28)).padStart(2,'0'),
+      cust:pick(custs), prod:(isDev?'개발비 ':'샘플 ')+prods[rnd(0,4)],
+      pcode:pcodes[rnd(0,4)], qty:rnd(1,5), price:rnd(10000,100000),
+      amount:amt, isDev:isDev, type:isDev?'개발비':'샘플원가'
+    });
+  }
+  S.sample = sample;
+
+  // ── EK정산 (S.ek)
+  var ek = [];
+  custs.forEach(function(cust){
+    for(var i=0;i<rnd(3,8);i++){
+      var idx=rnd(0,4);
+      var qty=rnd(5,50), price=rnd(8000,20000);
+      ek.push({
+        sheet:cust, date:'2026-04-'+String(rnd(1,28)).padStart(2,'0'),
+        cust:cust, prod:prods[idx], pcode:pcodes[idx],
+        qty:qty, price:price, supply:qty*price
+      });
+    }
+  });
+  S.ek = ek;
+
+  // ── 지출내역 (S.exp)
+  S.exp = [
+    {vendor:'CJ대한통운', rawAmt:120000, amount:120000, inclVat:false},
+    {vendor:'우체국 등기', rawAmt:4400,   amount:4000,   inclVat:true},
+    {vendor:'포장재 구매', rawAmt:330000, amount:300000, inclVat:true},
+  ];
+
+  // ── 중국 인보이스 (S.cnList)
+  S.cn = null;
+  S.cnList = [
+    {fname:'EK인보이스_0415.xlsx', usd:9000, invNo:'EKINV260309', invDate:'2026-03-09'},
+    {fname:'INVOICE-KR-041615.xlsx', usd:597.4, invNo:'', invDate:'2026-04-16'},
+    {fname:'EK-INV表格(1).xlsx', usd:9500, invNo:'EKINV260309', invDate:'2026-03-09'},
+  ];
+
+  // ── 고정비 (S.fixed)
+  S.fixed = [
+    {label:'임직원 급여', amount:8000000},
+    {label:'사무실 임대료', amount:2000000},
+    {label:'법인카드', amount:500000},
+    {label:'판관비(전기,가스,통신)', amount:300000},
+    {label:'차량비용', amount:800000},
+  ];
+  localStorage.setItem('ek_fixed', JSON.stringify(S.fixed));
+
+  // UI 갱신
+  markDz('dz-sales','i-sales','s-sales','[테스트] 매출자료.xlsx', sales.length+'건');
+  markDz('dz-sample','i-sample','s-sample','[테스트] 샘플개발비.xlsx', sample.length+'건');
+  markDz('dz-ek','i-ek','s-ek','[테스트] EK정산.xlsx', ek.length+'건');
+  markDz('dz-exp','i-exp','s-exp','[테스트] 지출내역.xlsx', S.exp.length+'건');
+  markDz('dz-cn','i-cn','s-cn','[테스트] 인보이스.xlsx', S.cnList.length+'개 · USD '+(9000+597.4+9500).toFixed(0));
+
+  renderSales();
+  renderSample();
+  renderPurchase();
+  renderFixed();
+  calcPnL();
+  renderInvArea();
+
+  toast('🧪 테스트 데이터 주입 완료!','ok');
+}
+
+function clearTestData(){
+  S.sales=null; S.sample=null; S.ek=null; S.exp=null; S.cn=null; S.cnList=[];
+  ['dz-sales','dz-sample','dz-ek','dz-exp','dz-cn'].forEach(function(id){
+    var el=document.getElementById(id); if(el) el.classList.remove('ok');
+  });
+  ['i-sales','i-sample','i-ek','i-exp','i-cn'].forEach(function(id){
+    var el=document.getElementById(id); if(el) el.textContent='📤';
+  });
+  ['s-sales','s-sample','s-ek','s-exp','s-cn'].forEach(function(id){
+    var el=document.getElementById(id); if(el) el.textContent='';
+  });
+  renderSales(); renderSample(); renderPurchase(); calcPnL(); renderInvArea();
+  toast('🧹 테스트 데이터 초기화','ok');
 }
 
 // ─────────────────────────────────────────
