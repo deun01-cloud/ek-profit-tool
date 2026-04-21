@@ -792,6 +792,9 @@ var NOTION_PROXY      = 'https://notion-proxy.deun01.workers.dev';
 var NOTION_PNL_DB     = '33485ab80321802eb32de838e6a6f5cd';  // 월별 손익관리
 var NOTION_FIXED_DB   = '9aff0c3aaabe48aab82967c6dc3f83a8';  // 고정비 설정
 var NOTION_BILLING_DB = '6373a854b0914107b66969c34f6f7ea4';  // 청구 관리
+var NOTION_SALES_DB   = 'c0c3fb585321466192a7f24ec3262aba';  // 납품 매출
+var NOTION_SAMPLE_DB  = 'd0d0aa39950c4c1a951d2e91f61de267';  // 샘플·개발비
+var NOTION_COGS_DB    = '9b992d33c1ee453f98432e6ed9e27831';  // 매입원가
 
 // ─────────────────────────────────────────
 //  State
@@ -913,10 +916,10 @@ function rf(file,type){
   r.onload=function(e){
     try{
       var wb=XLSX.read(e.target.result,{type:'array'});
-      if(type==='sales') {S.sales =parseSales(wb); markDz('dz-sales', 'i-sales', 's-sales', file.name,S.sales.length+'건'); renderSales(); calcPnL(); autoSyncNotion();}
-      if(type==='sample'){S.sample=parseSample(wb);markDz('dz-sample','i-sample','s-sample',file.name,S.sample.length+'건'); renderSample(); calcPnL(); autoSyncNotion();}
-      if(type==='ek')    {S.ek    =parseEK(wb);    markDz('dz-ek',   'i-ek',   's-ek',   file.name,S.ek.length+'건');    renderPurchase(); calcPnL(); autoSyncNotion();}
-      if(type==='exp')   {S.exp   =parseExp(wb);   markDz('dz-exp',  'i-exp',  's-exp',  file.name,S.exp.length+'건');   renderPurchase(); calcPnL(); autoSyncNotion();}
+      if(type==='sales') {S.sales =parseSales(wb); markDz('dz-sales', 'i-sales', 's-sales', file.name,S.sales.length+'건'); renderSales(); calcPnL(); autoSyncNotion(); var _p=document.getElementById('g-period').value; if(_p) syncSalesToNotion(_p);}
+      if(type==='sample'){S.sample=parseSample(wb);markDz('dz-sample','i-sample','s-sample',file.name,S.sample.length+'건'); renderSample(); calcPnL(); autoSyncNotion(); var _p=document.getElementById('g-period').value; if(_p) syncSampleToNotion(_p);}
+      if(type==='ek')    {S.ek    =parseEK(wb);    markDz('dz-ek',   'i-ek',   's-ek',   file.name,S.ek.length+'건');    renderPurchase(); calcPnL(); autoSyncNotion(); var _p=document.getElementById('g-period').value; if(_p) syncCogsToNotion(_p);}
+      if(type==='exp')   {S.exp   =parseExp(wb);   markDz('dz-exp',  'i-exp',  's-exp',  file.name,S.exp.length+'건');   renderPurchase(); calcPnL(); autoSyncNotion(); var _p=document.getElementById('g-period').value; if(_p) syncCogsToNotion(_p);}
       if(type==='cn'){
         var parsed=parseCN(wb);
         S.cn=parsed; // 하위 호환
@@ -1271,7 +1274,16 @@ function renderManual(){
   }).join('');
   updateManualTotal();
 }
-function updateManualTotal(){var t=S.manual.reduce(function(s,m){return s+m.amount},0);document.getElementById('manual-total').textContent=won(t)}
+function updateManualTotal(){
+  var t=S.manual.reduce(function(s,m){return s+m.amount},0);
+  document.getElementById('manual-total').textContent=won(t);
+  // Notion 자동 저장 (debounce)
+  clearTimeout(updateManualTotal._timer);
+  updateManualTotal._timer = setTimeout(function(){
+    var period=document.getElementById('g-period').value;
+    if(period) syncCogsToNotion(period);
+  }, 2000);
+}
 
 // ─────────────────────────────────────────
 //  Render — Purchase summary
@@ -2313,6 +2325,285 @@ function doDownloadHtml(){
 }
 
 // ─────────────────────────────────────────
+//  Notion 데이터 저장/로드 (납품·샘플·매입원가)
+// ─────────────────────────────────────────
+
+// 기존 기간 데이터 삭제 후 새로 저장 (period 기준)
+async function syncSalesToNotion(period){
+  if(!S.sales||!S.sales.length) return;
+  var status = document.getElementById('notion-sync-status');
+  if(status) status.textContent='🔄 납품 데이터 저장 중...';
+  try{
+    // 기존 해당 기간 데이터 삭제
+    var qR = await fetch(NOTION_PROXY+'/databases/'+NOTION_SALES_DB+'/query',{
+      method:'POST', headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'},
+      body:JSON.stringify({page_size:100, filter:{property:'기간', rich_text:{equals:period}}})
+    });
+    if(qR.ok){
+      var qD = await qR.json();
+      for(var i=0;i<(qD.results||[]).length;i++){
+        await fetch(NOTION_PROXY+'/pages/'+qD.results[i].id,{
+          method:'PATCH', headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'},
+          body:JSON.stringify({archived:true})
+        });
+      }
+    }
+    // 새 데이터 저장 (배치)
+    for(var i=0;i<S.sales.length;i++){
+      var it=S.sales[i];
+      await fetch(NOTION_PROXY+'/pages',{
+        method:'POST', headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'},
+        body:JSON.stringify({parent:{database_id:NOTION_SALES_DB}, properties:{
+          '항목명': {title:[{text:{content:it.prod||''}}]},
+          '기간':   {rich_text:[{text:{content:period}}]},
+          '거래처': {rich_text:[{text:{content:it.cust||''}}]},
+          '품목명': {rich_text:[{text:{content:it.prod||''}}]},
+          '품목코드':{rich_text:[{text:{content:it.pcode||''}}]},
+          '날짜':   {rich_text:[{text:{content:String(it.date||'')}}]},
+          '수량':   {number:Math.round(it.qty||0)},
+          '출고단가':{number:Math.round(it.price||0)},
+          '공급가액':{number:Math.round(it.amount||0)},
+          '적요':   {rich_text:[{text:{content:it.memo||''}}]}
+        }})
+      });
+    }
+    if(status) status.textContent='✅ 납품 데이터 Notion 저장 완료 ('+S.sales.length+'건)';
+  }catch(e){ console.warn('납품 Notion 저장 실패:', e.message); }
+}
+
+async function syncSampleToNotion(period){
+  if(!S.sample||!S.sample.length) return;
+  var status = document.getElementById('notion-sync-status');
+  if(status) status.textContent='🔄 샘플·개발비 저장 중...';
+  try{
+    var qR = await fetch(NOTION_PROXY+'/databases/'+NOTION_SAMPLE_DB+'/query',{
+      method:'POST', headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'},
+      body:JSON.stringify({page_size:100, filter:{property:'기간', rich_text:{equals:period}}})
+    });
+    if(qR.ok){
+      var qD = await qR.json();
+      for(var i=0;i<(qD.results||[]).length;i++){
+        await fetch(NOTION_PROXY+'/pages/'+qD.results[i].id,{
+          method:'PATCH', headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'},
+          body:JSON.stringify({archived:true})
+        });
+      }
+    }
+    for(var i=0;i<S.sample.length;i++){
+      var it=S.sample[i];
+      await fetch(NOTION_PROXY+'/pages',{
+        method:'POST', headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'},
+        body:JSON.stringify({parent:{database_id:NOTION_SAMPLE_DB}, properties:{
+          '항목명': {title:[{text:{content:it.prod||''}}]},
+          '기간':   {rich_text:[{text:{content:period}}]},
+          '거래처': {rich_text:[{text:{content:it.cust||''}}]},
+          '품목명': {rich_text:[{text:{content:it.prod||''}}]},
+          '품목코드':{rich_text:[{text:{content:it.pcode||''}}]},
+          '날짜':   {rich_text:[{text:{content:String(it.date||'')}}]},
+          '수량':   {number:Math.round(it.qty||0)},
+          '단가':   {number:Math.round(it.price||0)},
+          '공급가액':{number:Math.round(it.amount||0)},
+          '구분':   {rich_text:[{text:{content:it.isDev?'개발비':'샘플원가'}}]}
+        }})
+      });
+    }
+    if(status) status.textContent='✅ 샘플·개발비 Notion 저장 완료 ('+S.sample.length+'건)';
+  }catch(e){ console.warn('샘플 Notion 저장 실패:', e.message); }
+}
+
+async function syncCogsToNotion(period){
+  var status = document.getElementById('notion-sync-status');
+  if(status) status.textContent='🔄 매입원가 저장 중...';
+  try{
+    // 기존 삭제
+    var qR = await fetch(NOTION_PROXY+'/databases/'+NOTION_COGS_DB+'/query',{
+      method:'POST', headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'},
+      body:JSON.stringify({page_size:100, filter:{property:'기간', rich_text:{equals:period}}})
+    });
+    if(qR.ok){
+      var qD = await qR.json();
+      for(var i=0;i<(qD.results||[]).length;i++){
+        await fetch(NOTION_PROXY+'/pages/'+qD.results[i].id,{
+          method:'PATCH', headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'},
+          body:JSON.stringify({archived:true})
+        });
+      }
+    }
+    // EK정산
+    if(S.ek&&S.ek.length){
+      for(var i=0;i<S.ek.length;i++){
+        var it=S.ek[i];
+        await fetch(NOTION_PROXY+'/pages',{
+          method:'POST', headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'},
+          body:JSON.stringify({parent:{database_id:NOTION_COGS_DB}, properties:{
+            '항목명':{title:[{text:{content:it.prod||''}}]},
+            '기간':  {rich_text:[{text:{content:period}}]},
+            '구분':  {rich_text:[{text:{content:'EK정산'}}]},
+            '거래처':{rich_text:[{text:{content:it.cust||''}}]},
+            '금액':  {number:Math.round(it.supply||0)},
+            '비고':  {rich_text:[{text:{content:it.pcode||''}}]}
+          }})
+        });
+      }
+    }
+    // 지출내역
+    if(S.exp&&S.exp.length){
+      for(var i=0;i<S.exp.length;i++){
+        var it=S.exp[i];
+        await fetch(NOTION_PROXY+'/pages',{
+          method:'POST', headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'},
+          body:JSON.stringify({parent:{database_id:NOTION_COGS_DB}, properties:{
+            '항목명':{title:[{text:{content:it.vendor||''}}]},
+            '기간':  {rich_text:[{text:{content:period}}]},
+            '구분':  {rich_text:[{text:{content:'지출내역'}}]},
+            '거래처':{rich_text:[{text:{content:it.vendor||''}}]},
+            '금액':  {number:Math.round(it.amount||0)},
+            '비고':  {rich_text:[{text:{content:it.inclVat?'부가세포함':''}}]}
+          }})
+        });
+      }
+    }
+    // 중국 인보이스
+    var rate = parseFloat(document.getElementById('usd-rate').value)||1350;
+    if(S.cnList&&S.cnList.length){
+      for(var i=0;i<S.cnList.length;i++){
+        var inv=S.cnList[i];
+        await fetch(NOTION_PROXY+'/pages',{
+          method:'POST', headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'},
+          body:JSON.stringify({parent:{database_id:NOTION_COGS_DB}, properties:{
+            '항목명':{title:[{text:{content:inv.fname||'중국인보이스'}}]},
+            '기간':  {rich_text:[{text:{content:period}}]},
+            '구분':  {rich_text:[{text:{content:'중국인보이스'}}]},
+            '거래처':{rich_text:[{text:{content:'중국공장'}}]},
+            '금액':  {number:Math.round(inv.usd*rate)},
+            '비고':  {rich_text:[{text:{content:'USD '+inv.usd+(inv.invDate?' / '+inv.invDate:'')}}]}
+          }})
+        });
+      }
+    }
+    // 직접 입력 원가
+    if(S.manual&&S.manual.length){
+      for(var i=0;i<S.manual.length;i++){
+        var m=S.manual[i];
+        if(!m.amount||!m.label) continue;
+        await fetch(NOTION_PROXY+'/pages',{
+          method:'POST', headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'},
+          body:JSON.stringify({parent:{database_id:NOTION_COGS_DB}, properties:{
+            '항목명':{title:[{text:{content:m.label||''}}]},
+            '기간':  {rich_text:[{text:{content:period}}]},
+            '구분':  {rich_text:[{text:{content:'직접입력'}}]},
+            '거래처':{rich_text:[{text:{content:''}}]},
+            '금액':  {number:Math.round(m.amount||0)},
+            '비고':  {rich_text:[{text:{content:'수동입력'}}]}
+          }})
+        });
+      }
+    }
+    if(status) status.textContent='✅ 매입원가 Notion 저장 완료';
+  }catch(e){ console.warn('매입원가 Notion 저장 실패:', e.message); }
+}
+
+// Notion에서 해당 기간 데이터 로드
+async function loadPeriodFromNotion(period){
+  var status = document.getElementById('notion-sync-status');
+  if(status) status.textContent='🔄 Notion에서 데이터 로드 중...';
+  try{
+    var loaded = {sales:[], sample:[], ek:[], exp:[], cnList:{}, manual:[]};
+
+    // 납품 로드
+    var r1 = await fetch(NOTION_PROXY+'/databases/'+NOTION_SALES_DB+'/query',{
+      method:'POST', headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'},
+      body:JSON.stringify({page_size:100, filter:{property:'기간', rich_text:{equals:period}}})
+    });
+    if(r1.ok){
+      var d1 = await r1.json();
+      (d1.results||[]).filter(function(p){return !p.archived;}).forEach(function(p){
+        var pr=p.properties;
+        var getText=function(k){return pr[k]&&pr[k].rich_text&&pr[k].rich_text[0]?pr[k].rich_text[0].plain_text:'';};
+        loaded.sales.push({
+          date:getText('날짜'), cust:getText('거래처'), prod:getText('품목명'),
+          pcode:getText('품목코드'), qty:pr['수량']?pr['수량'].number:0,
+          price:pr['출고단가']?pr['출고단가'].number:0,
+          amount:pr['공급가액']?pr['공급가액'].number:0, memo:getText('적요')
+        });
+      });
+    }
+
+    // 샘플 로드
+    var r2 = await fetch(NOTION_PROXY+'/databases/'+NOTION_SAMPLE_DB+'/query',{
+      method:'POST', headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'},
+      body:JSON.stringify({page_size:100, filter:{property:'기간', rich_text:{equals:period}}})
+    });
+    if(r2.ok){
+      var d2 = await r2.json();
+      (d2.results||[]).filter(function(p){return !p.archived;}).forEach(function(p){
+        var pr=p.properties;
+        var getText=function(k){return pr[k]&&pr[k].rich_text&&pr[k].rich_text[0]?pr[k].rich_text[0].plain_text:'';};
+        var isDev = getText('구분')==='개발비';
+        loaded.sample.push({
+          date:getText('날짜'), cust:getText('거래처'), prod:getText('품목명'),
+          pcode:getText('품목코드'), qty:pr['수량']?pr['수량'].number:0,
+          price:pr['단가']?pr['단가'].number:0,
+          amount:pr['공급가액']?pr['공급가액'].number:0,
+          isDev:isDev, type:isDev?'개발비':'샘플원가'
+        });
+      });
+    }
+
+    // 매입원가 로드
+    var r3 = await fetch(NOTION_PROXY+'/databases/'+NOTION_COGS_DB+'/query',{
+      method:'POST', headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'},
+      body:JSON.stringify({page_size:200, filter:{property:'기간', rich_text:{equals:period}}})
+    });
+    if(r3.ok){
+      var d3 = await r3.json();
+      (d3.results||[]).filter(function(p){return !p.archived;}).forEach(function(p){
+        var pr=p.properties;
+        var getText=function(k){return pr[k]&&pr[k].rich_text&&pr[k].rich_text[0]?pr[k].rich_text[0].plain_text:'';};
+        var gubun=getText('구분'), amt=pr['금액']?pr['금액'].number:0;
+        if(gubun==='EK정산'){
+          loaded.ek.push({sheet:getText('거래처'),cust:getText('거래처'),
+            prod:getText('항목명'),pcode:getText('비고'),supply:amt,qty:0,price:0,date:''});
+        } else if(gubun==='지출내역'){
+          loaded.exp.push({vendor:getText('거래처'),amount:amt,rawAmt:amt,
+            inclVat:getText('비고').includes('부가세')});
+        } else if(gubun==='중국인보이스'){
+          var rate=parseFloat(document.getElementById('usd-rate').value)||1350;
+          var usd=amt/rate;
+          loaded.cnList[getText('항목명')]={fname:getText('항목명'),usd:usd,invDate:''};
+        } else if(gubun==='직접입력'){
+          loaded.manual.push({label:getText('항목명'), amount:amt});
+        }
+      });
+    }
+
+    var hasData = loaded.sales.length||loaded.sample.length||loaded.ek.length||loaded.exp.length;
+    if(!hasData){
+      if(status) status.textContent='📭 Notion에 '+period+' 데이터 없음';
+      return false;
+    }
+
+    // 데이터 적용
+    if(loaded.manual.length){ S.manual=loaded.manual; renderManual(); }
+    if(loaded.sales.length){ S.sales=loaded.sales; markDz('dz-sales','i-sales','s-sales','[Notion] '+period,loaded.sales.length+'건'); }
+    if(loaded.sample.length){ S.sample=loaded.sample; markDz('dz-sample','i-sample','s-sample','[Notion] '+period,loaded.sample.length+'건'); }
+    if(loaded.ek.length){ S.ek=loaded.ek; markDz('dz-ek','i-ek','s-ek','[Notion] '+period,loaded.ek.length+'건'); }
+    if(loaded.exp.length){ S.exp=loaded.exp; markDz('dz-exp','i-exp','s-exp','[Notion] '+period,loaded.exp.length+'건'); }
+    var cnArr=Object.values(loaded.cnList);
+    if(cnArr.length){ S.cnList=cnArr; S.cn=cnArr[0]; markDz('dz-cn','i-cn','s-cn','[Notion] '+period,cnArr.length+'개'); }
+
+    renderSales(); renderSample(); renderPurchase(); calcPnL(); renderInvArea();
+    if(status) status.textContent='✅ Notion에서 '+period+' 데이터 로드 완료';
+    toast('📥 Notion에서 '+period+' 데이터를 불러왔습니다','ok');
+    return true;
+  }catch(e){
+    console.warn('Notion 데이터 로드 실패:', e.message);
+    if(status) status.textContent='⚠️ Notion 로드 실패: '+e.message;
+    return false;
+  }
+}
+
+// ─────────────────────────────────────────
 //  Save period
 // ─────────────────────────────────────────
 // ─────────────────────────────────────────
@@ -2442,6 +2733,13 @@ function onPeriodChange(){
   // 파일 없으면 저장 데이터로 요약 갱신
   if(!S.sales||!S.sales.length) renderSales();
   if(!S.sample||!S.sample.length) renderSample();
+
+  // Notion에서 해당 기간 데이터 자동 로드
+  var hasLive = (S.sales&&S.sales.length)||(S.sample&&S.sample.length)||
+                (S.ek&&S.ek.length)||(S.exp&&S.exp.length);
+  if(!hasLive){
+    loadPeriodFromNotion(period);
+  }
 
   if(rec){
     toast('📂 '+period+' 저장 데이터 불러옴','ok');
