@@ -849,6 +849,8 @@ var S = {
   loadFixedFromNotion().then(function(ok){
     if(ok) document.getElementById('notion-sync-status').textContent='✅ Notion에서 고정비 불러왔습니다';
   });
+  // Notion에서 현재 월 매출/매입 데이터 자동 로드
+  loadPeriodFromNotion(initPeriod);
 })();
 
 // ─────────────────────────────────────────
@@ -2795,12 +2797,8 @@ function onPeriodChange(){
   if(!S.sales||!S.sales.length) try{ renderSales(); }catch(e){ console.warn('renderSales:',e.message); }
   if(!S.sample||!S.sample.length) try{ renderSample(); }catch(e){ console.warn('renderSample:',e.message); }
 
-  // Notion에서 해당 기간 데이터 자동 로드
-  var hasLive = (S.sales&&S.sales.length)||(S.sample&&S.sample.length)||
-                (S.ek&&S.ek.length)||(S.exp&&S.exp.length);
-  if(!hasLive){
-    loadPeriodFromNotion(period);
-  }
+  // Notion에서 해당 기간 데이터 자동 로드 (항상 최신 데이터로)
+  loadPeriodFromNotion(period);
 
   if(rec){
     toast('📂 '+period+' 저장 데이터 불러옴','ok');
