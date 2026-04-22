@@ -784,9 +784,8 @@ tbody tr:hover td{background:#fafafa}
     </div>
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
       <button class="btn btn-sm" onclick="saveNotionCfg()">설정 저장</button>
-      <span style="font-size:11px;color:var(--hi)">Cloudflare Worker 프록시로 자동 동기화됩니다. 별도 토큰 설정 불필요.
-        
-      </span>
+      <button class="btn btn-sm" style="color:var(--rd)" onclick="deduplicateCogsDB()">🧹 매입원가 중복 정리</button>
+      <span style="font-size:11px;color:var(--hi)">Cloudflare Worker 프록시로 자동 동기화됩니다.</span>
     </div>
     <div style="margin-top:10px;font-size:12px;padding:8px 12px;background:var(--acbg);border-radius:var(--r);color:var(--ac)" id="notion-sync-status">
       ✅ Cloudflare Worker 프록시 연결됨 — 저장 시 자동으로 Notion에 동기화됩니다
@@ -1431,6 +1430,7 @@ async function resetFixedCosts(){
 
 function addFixed(){S.fixed.push({label:'',amount:0});renderFixed();saveFixed();}
 var _fixedLoading = false; // 로드 중 sync 방지 플래그
+var _notionLoading = false; // Notion 로드 중 sync 완전 차단
 
 function renderFixed(){
   var el=document.getElementById('fixed-list');
@@ -2385,6 +2385,7 @@ function doDownloadHtml(){
 
 // 기존 기간 데이터 삭제 후 새로 저장 (period 기준)
 async function syncSalesToNotion(period){
+  if(_notionLoading) return; // 로드 중 차단
   if(!S.sales||!S.sales.length) return;
   var status = document.getElementById('notion-sync-status');
   if(status) status.textContent='🔄 납품 데이터 저장 중...';
@@ -2433,6 +2434,7 @@ async function syncSalesToNotion(period){
 }
 
 async function syncSampleToNotion(period){
+  if(_notionLoading) return; // 로드 중 차단
   if(!S.sample||!S.sample.length) return;
   var status = document.getElementById('notion-sync-status');
   if(status) status.textContent='🔄 샘플·개발비 저장 중...';
@@ -2479,6 +2481,7 @@ async function syncSampleToNotion(period){
 }
 
 async function syncCogsToNotion(period){
+  if(_notionLoading) return; // 로드 중 차단
   var status = document.getElementById('notion-sync-status');
   if(status) status.textContent='🔄 매입원가 저장 중...';
   try{
@@ -2578,6 +2581,7 @@ async function syncCogsToNotion(period){
 
 // Notion에서 해당 기간 데이터 로드
 async function loadPeriodFromNotion(period){
+  _notionLoading = true; // sync 차단 시작
   var status = document.getElementById('notion-sync-status');
   if(status) status.textContent='🔄 Notion에서 데이터 로드 중...';
   try{
@@ -2673,10 +2677,12 @@ async function loadPeriodFromNotion(period){
     if(cnArr.length){ S.cnList=cnArr; S.cn=cnArr[0]; markDz('dz-cn','i-cn','s-cn','[Notion] '+period,cnArr.length+'개'); }
 
     try{ renderSales(); }catch(e){ console.warn(e); } try{ renderSample(); }catch(e){ console.warn(e); } renderPurchase(); calcPnL(); renderInvArea();
+    _notionLoading = false; // sync 차단 해제
     if(status) status.textContent='✅ Notion에서 '+period+' 데이터 로드 완료';
     toast('📥 Notion에서 '+period+' 데이터를 불러왔습니다','ok');
     return true;
   }catch(e){
+    _notionLoading = false; // sync 차단 해제
     console.warn('Notion 데이터 로드 실패:', e.message);
     if(status) status.textContent='⚠️ Notion 로드 실패: '+e.message;
     return false;
@@ -2691,6 +2697,7 @@ async function loadPeriodFromNotion(period){
 // ─────────────────────────────────────────
 var _autoSyncTimer = null;
 function autoSyncNotion(){
+  if(_notionLoading) return; // 로드 중 차단
   clearTimeout(_autoSyncTimer);
   _autoSyncTimer = setTimeout(function(){
     // 프록시 방식 — 항상 동기화
@@ -3873,6 +3880,53 @@ async function renderFileVault(period){
   });
   html += '</tbody></table>';
   el.innerHTML = html;
+}
+
+// Notion 매입원가 DB 중복 정리
+async function deduplicateCogsDB(){
+  var status = document.getElementById('notion-sync-status');
+  if(status) status.textContent = '🔄 중복 정리 중...';
+  try{
+    // 전체 데이터 로드
+    var resp = await fetch(NOTION_PROXY+'/databases/'+NOTION_COGS_DB+'/query',{
+      method:'POST', headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'},
+      body:JSON.stringify({page_size:200})
+    });
+    if(!resp.ok){ toast('DB 조회 실패','err'); return; }
+    var d = await resp.json();
+    var pages = (d.results||[]).filter(function(p){return !p.archived;});
+
+    // 기간+항목명 기준으로 그룹화 — 가장 오래된 것만 유지
+    var seen = {};
+    var toDelete = [];
+    // 오래된 순 정렬
+    pages.sort(function(a,b){ return new Date(a.created_time)-new Date(b.created_time); });
+    pages.forEach(function(p){
+      var pr = p.properties;
+      var getText = function(k){ return pr[k]&&pr[k].rich_text&&pr[k].rich_text[0]?pr[k].rich_text[0].plain_text:''; };
+      var getTitle = function(k){ return pr[k]&&pr[k].title&&pr[k].title[0]?pr[k].title[0].plain_text:''; };
+      var key = getText('기간')+'__'+getTitle('항목명')+'__'+getText('구분')+'__'+(pr['금액']?pr['금액'].number:0);
+      if(seen[key]){
+        toDelete.push(p.id);
+      } else {
+        seen[key] = true;
+      }
+    });
+
+    if(!toDelete.length){ toast('✅ 중복 없음','ok'); if(status) status.textContent='✅ 중복 없음'; return; }
+
+    // 중복 항목 삭제
+    var deleted = 0;
+    for(var i=0;i<toDelete.length;i++){
+      var r = await fetch(NOTION_PROXY+'/pages/'+toDelete[i],{
+        method:'PATCH', headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'},
+        body:JSON.stringify({archived:true})
+      });
+      if(r.ok) deleted++;
+    }
+    if(status) status.textContent='✅ 중복 '+deleted+'개 정리 완료';
+    toast('🧹 매입원가 중복 '+deleted+'개 삭제','ok');
+  }catch(e){ toast('오류: '+e.message,'err'); }
 }
 
 // ─────────────────────────────────────────
