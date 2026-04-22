@@ -2564,7 +2564,7 @@ async function loadPeriodFromNotion(period){
   var status = document.getElementById('notion-sync-status');
   if(status) status.textContent='🔄 Notion에서 데이터 로드 중...';
   try{
-    var loaded = {sales:[], sample:[], ek:[], exp:[], cnList:{}, manual:[]};
+    var loaded = {sales:[], sample:[], ek:[], exp:[], cnList:[], manual:[]};
 
     // 납품 로드
     var r1 = await fetch(NOTION_PROXY+'/databases/'+NOTION_SALES_DB+'/query',{
@@ -2633,7 +2633,7 @@ async function loadPeriodFromNotion(period){
         } else if(gubun==='중국인보이스'){
           var rate=parseFloat(document.getElementById('usd-rate').value)||1350;
           var usd=amt/rate;
-          loaded.cnList[getText('항목명')]={fname:getText('항목명'),usd:usd,invDate:''};
+          loaded.cnList.push({fname:getText('항목명'),usd:usd,invDate:''});
         } else if(gubun==='직접입력'){
           loaded.manual.push({label:getText('항목명'), amount:amt});
         }
@@ -2652,7 +2652,7 @@ async function loadPeriodFromNotion(period){
     if(loaded.sample.length){ S.sample=loaded.sample; markDz('dz-sample','i-sample','s-sample','[Notion] '+period,loaded.sample.length+'건'); }
     if(loaded.ek.length){ S.ek=loaded.ek; markDz('dz-ek','i-ek','s-ek','[Notion] '+period,loaded.ek.length+'건'); }
     if(loaded.exp.length){ S.exp=loaded.exp; markDz('dz-exp','i-exp','s-exp','[Notion] '+period,loaded.exp.length+'건'); }
-    var cnArr=Object.values(loaded.cnList);
+    var cnArr=loaded.cnList;
     if(cnArr.length){ S.cnList=cnArr; S.cn=cnArr[0]; markDz('dz-cn','i-cn','s-cn','[Notion] '+period,cnArr.length+'개'); }
 
     try{ renderSales(); }catch(e){ console.warn(e); } try{ renderSample(); }catch(e){ console.warn(e); } renderPurchase(); calcPnL(); renderInvArea();
