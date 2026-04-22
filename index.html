@@ -2373,12 +2373,18 @@ async function syncSalesToNotion(period){
     // 기존 해당 기간 데이터 삭제
     var qR = await fetch(NOTION_PROXY+'/databases/'+NOTION_SALES_DB+'/query',{
       method:'POST', headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'},
-      body:JSON.stringify({page_size:100, filter:{property:'기간', rich_text:{equals:period}}})
+      body:JSON.stringify({page_size:200})
     });
     if(qR.ok){
       var qD = await qR.json();
-      for(var i=0;i<(qD.results||[]).length;i++){
-        await fetch(NOTION_PROXY+'/pages/'+qD.results[i].id,{
+      var toDelSales = (qD.results||[]).filter(function(p){
+        if(p.archived) return false;
+        var props=p.properties;
+        var pg = props['기간']&&props['기간'].rich_text&&props['기간'].rich_text[0]?props['기간'].rich_text[0].plain_text:'';
+        return pg===period;
+      });
+      for(var i=0;i<toDelSales.length;i++){
+        await fetch(NOTION_PROXY+'/pages/'+toDelSales[i].id,{
           method:'PATCH', headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'},
           body:JSON.stringify({archived:true})
         });
@@ -2414,12 +2420,18 @@ async function syncSampleToNotion(period){
   try{
     var qR = await fetch(NOTION_PROXY+'/databases/'+NOTION_SAMPLE_DB+'/query',{
       method:'POST', headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'},
-      body:JSON.stringify({page_size:100, filter:{property:'기간', rich_text:{equals:period}}})
+      body:JSON.stringify({page_size:200})
     });
     if(qR.ok){
       var qD = await qR.json();
-      for(var i=0;i<(qD.results||[]).length;i++){
-        await fetch(NOTION_PROXY+'/pages/'+qD.results[i].id,{
+      var toDelSample = (qD.results||[]).filter(function(p){
+        if(p.archived) return false;
+        var props=p.properties;
+        var pg = props['기간']&&props['기간'].rich_text&&props['기간'].rich_text[0]?props['기간'].rich_text[0].plain_text:'';
+        return pg===period;
+      });
+      for(var i=0;i<toDelSample.length;i++){
+        await fetch(NOTION_PROXY+'/pages/'+toDelSample[i].id,{
           method:'PATCH', headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'},
           body:JSON.stringify({archived:true})
         });
@@ -2454,12 +2466,18 @@ async function syncCogsToNotion(period){
     // 기존 삭제
     var qR = await fetch(NOTION_PROXY+'/databases/'+NOTION_COGS_DB+'/query',{
       method:'POST', headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'},
-      body:JSON.stringify({page_size:100, filter:{property:'기간', rich_text:{equals:period}}})
+      body:JSON.stringify({page_size:200})
     });
     if(qR.ok){
       var qD = await qR.json();
-      for(var i=0;i<(qD.results||[]).length;i++){
-        await fetch(NOTION_PROXY+'/pages/'+qD.results[i].id,{
+      var toDelCogs = (qD.results||[]).filter(function(p){
+        if(p.archived) return false;
+        var props=p.properties;
+        var pg = props['기간']&&props['기간'].rich_text&&props['기간'].rich_text[0]?props['기간'].rich_text[0].plain_text:'';
+        return pg===period;
+      });
+      for(var i=0;i<toDelCogs.length;i++){
+        await fetch(NOTION_PROXY+'/pages/'+toDelCogs[i].id,{
           method:'PATCH', headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'},
           body:JSON.stringify({archived:true})
         });
@@ -2549,13 +2567,14 @@ async function loadPeriodFromNotion(period){
     // 납품 로드
     var r1 = await fetch(NOTION_PROXY+'/databases/'+NOTION_SALES_DB+'/query',{
       method:'POST', headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'},
-      body:JSON.stringify({page_size:100, filter:{property:'기간', rich_text:{equals:period}}})
+      body:JSON.stringify({page_size:200})
     });
     if(r1.ok){
       var d1 = await r1.json();
       (d1.results||[]).filter(function(p){return !p.archived;}).forEach(function(p){
         var pr=p.properties;
         var getText=function(k){return pr[k]&&pr[k].rich_text&&pr[k].rich_text[0]?pr[k].rich_text[0].plain_text:'';};
+        if(getText('기간')!==period) return; // 기간 필터
         var custVal = getText('거래처');
         if(!custVal||custVal==='undefined') return; // 거래처 없으면 스킵
         loaded.sales.push({
@@ -2570,13 +2589,14 @@ async function loadPeriodFromNotion(period){
     // 샘플 로드
     var r2 = await fetch(NOTION_PROXY+'/databases/'+NOTION_SAMPLE_DB+'/query',{
       method:'POST', headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'},
-      body:JSON.stringify({page_size:100, filter:{property:'기간', rich_text:{equals:period}}})
+      body:JSON.stringify({page_size:200})
     });
     if(r2.ok){
       var d2 = await r2.json();
       (d2.results||[]).filter(function(p){return !p.archived;}).forEach(function(p){
         var pr=p.properties;
         var getText=function(k){return pr[k]&&pr[k].rich_text&&pr[k].rich_text[0]?pr[k].rich_text[0].plain_text:'';};
+        if(getText('기간')!==period) return; // 기간 필터
         var isDev = getText('구분')==='개발비';
         var custVal2 = getText('거래처');
         if(!custVal2||custVal2==='undefined') return; // 거래처 없으면 스킵
@@ -2593,13 +2613,14 @@ async function loadPeriodFromNotion(period){
     // 매입원가 로드
     var r3 = await fetch(NOTION_PROXY+'/databases/'+NOTION_COGS_DB+'/query',{
       method:'POST', headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'},
-      body:JSON.stringify({page_size:200, filter:{property:'기간', rich_text:{equals:period}}})
+      body:JSON.stringify({page_size:200})
     });
     if(r3.ok){
       var d3 = await r3.json();
       (d3.results||[]).filter(function(p){return !p.archived;}).forEach(function(p){
         var pr=p.properties;
         var getText=function(k){return pr[k]&&pr[k].rich_text&&pr[k].rich_text[0]?pr[k].rich_text[0].plain_text:'';};
+        if(getText('기간')!==period) return; // 기간 필터
         var gubun=getText('구분'), amt=pr['금액']?pr['금액'].number:0;
         if(gubun==='EK정산'){
           loaded.ek.push({sheet:getText('거래처'),cust:getText('거래처'),
