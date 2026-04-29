@@ -167,6 +167,7 @@ tbody tr:hover td{background:#fafafa}
       <div class="dz-dsc">ERP → 출하지시서현황 엑셀</div>
       <div class="dz-hint">col: <b>일자-No.</b> · <b>거래처명</b> · 품목명 · 품목코드 · 이미지 · <b>수량</b> · <b>출고단가</b> · 적요<br>※ 공급가액 = 수량 × 출고단가</div>
       <div class="dz-stat" id="s-sales"></div>
+      <div id="files-sales" style="display:none;text-align:left;margin-top:8px"></div>
       <input type="file" id="fi-sales" accept=".xlsx,.xls" onchange="lf(this,'sales')">
     </div>
     <div class="dz" id="dz-sample" onclick="document.getElementById('fi-sample').click()" ondragover="dzo(event,'dz-sample')" ondragleave="dzl('dz-sample')" ondrop="dzd(event,'sample')">
@@ -176,6 +177,7 @@ tbody tr:hover td{background:#fafafa}
       <div class="dz-dsc">ERP → 견적서현황 엑셀</div>
       <div class="dz-hint">col: <b>일자-No.</b> · 품목명 · 품목코드 · 수량 · 이미지 · 단가 · <b>공급가액</b> · <b>거래처명</b> · <b>적요</b><br>※ 적요에 "개발비" → 개발비 / 없으면 → 샘플 원가</div>
       <div class="dz-stat" id="s-sample"></div>
+      <div id="files-sample" style="display:none;text-align:left;margin-top:8px"></div>
       <input type="file" id="fi-sample" accept=".xlsx,.xls" onchange="lf(this,'sample')">
     </div>
   </div>
@@ -217,19 +219,10 @@ tbody tr:hover td{background:#fafafa}
 <div class="pg" id="pg-purchase">
   <div class="note am">
     <span>💡</span>
-    <span><b>원가 기준</b> — 상품 공급가로 산정합니다. <b>샘플·개발비(견적서현황)</b>는 매출 입력 탭에서 업로드하면 자동 반영됩니다. 여기서는 통합EK정산·지출내역서·중국인보이스 추가 원가를 입력합니다.</span>
+    <span><b>원가 기준</b> — 상품 공급가로 산정합니다. <b>샘플·개발비(견적서현황)</b>는 매출 입력 탭에서 업로드하면 자동 반영됩니다. 여기서는 지출내역서·중국인보이스 추가 원가를 입력합니다.</span>
   </div>
 
-  <div class="dz-row3">
-    <div class="dz" id="dz-ek" onclick="document.getElementById('fi-ek').click()" ondragover="dzo(event,'dz-ek')" ondragleave="dzl('dz-ek')" ondrop="dzd(event,'ek')">
-      <button class="dz-x" onclick="event.stopPropagation();czd('ek')">×</button>
-      <span class="dz-ico" id="i-ek">📤</span>
-      <div class="dz-ttl">통합EK정산 파일</div>
-      <div class="dz-dsc">거래처별 시트 자동 파싱</div>
-      <div class="dz-hint">시트별 순회 → <b>공급가액</b> 컬럼 집계 (최종·Sheet1 제외)</div>
-      <div class="dz-stat" id="s-ek"></div>
-      <input type="file" id="fi-ek" accept=".xlsx,.xls" onchange="lf(this,'ek')">
-    </div>
+  <div class="dz-row">
     <div class="dz" id="dz-exp" onclick="document.getElementById('fi-exp').click()" ondragover="dzo(event,'dz-exp')" ondragleave="dzl('dz-exp')" ondrop="dzd(event,'exp')">
       <button class="dz-x" onclick="event.stopPropagation();czd('exp')">×</button>
       <span class="dz-ico" id="i-exp">📤</span>
@@ -237,6 +230,7 @@ tbody tr:hover td{background:#fafafa}
       <div class="dz-dsc">월말 청구내역서 엑셀</div>
       <div class="dz-hint">컬럼: 구분 · <b>거래처</b> · <b>금액</b> · 확인 · <b>부가세포함여부</b> (O면 ÷1.1 자동)</div>
       <div class="dz-stat" id="s-exp"></div>
+      <div id="files-exp" style="display:none;text-align:left;margin-top:8px"></div>
       <input type="file" id="fi-exp" accept=".xlsx,.xls" onchange="lf(this,'exp')">
     </div>
     <div class="dz" id="dz-cn" onclick="document.getElementById('fi-cn').click()" ondragover="dzo(event,'dz-cn')" ondragleave="dzl('dz-cn')" ondrop="dzd(event,'cn')">
@@ -246,6 +240,7 @@ tbody tr:hover td{background:#fafafa}
       <div class="dz-dsc">USD 인보이스 엑셀</div>
       <div class="dz-hint">여러 파일 동시 드래그&drop 가능 · 금액 컬럼 자동 탐색 · 아래 환율로 KRW 변환</div>
       <div class="dz-stat" id="s-cn"></div>
+      <div id="files-cn" style="display:none;text-align:left;margin-top:8px"></div>
       <input type="file" id="fi-cn" accept=".xlsx,.xls" multiple onchange="lfMulti(this,'cn')">
     </div>
   </div>
@@ -617,14 +612,279 @@ var NOTION_BILLING_DB = '6373a854b0914107b66969c34f6f7ea4';
 var NOTION_SALES_DB   = 'c0c3fb585321466192a7f24ec3262aba';
 var NOTION_SAMPLE_DB  = 'd0d0aa39950c4c1a951d2e91f61de267';
 var NOTION_COGS_DB    = '9b992d33c1ee453f98432e6ed9e27831';
+// [신규] 업로드 파일 보관 DB — 사용자가 만든 후 ID 입력
+var NOTION_FILES_DB   = ''; // ← 여기에 새로 만든 파일DB의 ID를 넣어주세요
 
 var S = {
   sales:null, sample:null, ek:null, exp:null, cn:null, cnList:[],
-  billing:[], manual:[], fixed:[], selCust:null
+  billing:[], manual:[], fixed:[], selCust:null,
+  records:{},  // [신규] 월별 손익 스냅샷 캐시 (Notion에서 로드)
+  files:{}     // [신규] 업로드 파일 메타데이터 캐시. {period: [{name, type, url, uploadedAt, pageId}]}
 };
 
 var _fixedLoading = false;
 var _fixedSyncing = false;
+var _recordsLoaded = false; // Notion PNL DB가 한번이라도 로드됐는지
+
+// ─────────────────────────────────────────
+// [신규] 업로드 파일 보관 — Notion 파일 DB
+// ─────────────────────────────────────────
+var FILE_TYPE_LABEL = {
+  'sales':  '납품매출',
+  'sample': '샘플개발비',
+  'exp':    '지출내역',
+  'cn':     '중국인보이스'
+};
+
+// 파일을 노션에 업로드 → 파일 DB에 새 행 생성하면서 attach
+async function uploadFileToNotion(file, type, period, extraInfo){
+  if(!NOTION_FILES_DB){
+    console.warn('NOTION_FILES_DB가 설정되지 않음 — 파일 보관 건너뜀');
+    return null;
+  }
+  try{
+    // Step 1: file_uploads 객체 생성 (id, upload_url 받기)
+    var step1 = await fetch(NOTION_PROXY+'/file_uploads', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'},
+      body: JSON.stringify({
+        filename: file.name,
+        content_type: file.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      })
+    });
+    if(!step1.ok){
+      var e1 = await step1.text();
+      console.warn('Step1 실패:', step1.status, e1);
+      return null;
+    }
+    var d1 = await step1.json();
+    var uploadId = d1.id;
+
+    // Step 2: 실제 파일 전송 (multipart) — 워커 프록시의 별도 엔드포인트 사용
+    var form = new FormData();
+    form.append('file', file, file.name);
+    var step2 = await fetch(NOTION_PROXY+'/file_uploads/'+uploadId+'/send', {
+      method:'POST',
+      headers:{'Notion-Version':'2022-06-28'},
+      body: form
+    });
+    if(!step2.ok){
+      var e2 = await step2.text();
+      console.warn('Step2 실패:', step2.status, e2);
+      return null;
+    }
+
+    // Step 3: 파일 DB에 새 행 만들면서 file_upload attach
+    var props = {
+      '이름':       {title:[{text:{content:file.name}}]},
+      '기간':       {rich_text:[{text:{content:period||''}}]},
+      '타입':       {select:{name: FILE_TYPE_LABEL[type] || type}},
+      '업로드일시': {rich_text:[{text:{content: new Date().toISOString()}}]},
+      '파일':       {files:[{
+        name: file.name,
+        type: 'file_upload',
+        file_upload: { id: uploadId }
+      }]}
+    };
+    if(extraInfo && typeof extraInfo === 'string'){
+      props['비고'] = {rich_text:[{text:{content: extraInfo}}]};
+    }
+    var step3 = await fetch(NOTION_PROXY+'/pages', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'},
+      body: JSON.stringify({parent:{database_id:NOTION_FILES_DB}, properties: props})
+    });
+    if(!step3.ok){
+      var e3 = await step3.text();
+      console.warn('Step3 실패:', step3.status, e3);
+      return null;
+    }
+    var d3 = await step3.json();
+    return {
+      pageId: d3.id,
+      name: file.name,
+      type: type,
+      period: period,
+      uploadedAt: new Date().toISOString()
+    };
+  }catch(err){
+    console.warn('파일 업로드 실패:', err.message);
+    return null;
+  }
+}
+
+// 특정 기간의 파일 메타데이터를 노션에서 로드
+async function loadFilesFromNotion(period){
+  if(!NOTION_FILES_DB){ return []; }
+  try{
+    var resp = await fetch(NOTION_PROXY+'/databases/'+NOTION_FILES_DB+'/query',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'},
+      body: JSON.stringify({
+        page_size:100,
+        filter:{property:'기간', rich_text:{equals:period}}
+      })
+    });
+    if(!resp.ok) return [];
+    var data = await resp.json();
+    var items = (data.results||[]).filter(function(p){return !p.archived;}).map(function(p){
+      var pr = p.properties;
+      var name = pr['이름']&&pr['이름'].title&&pr['이름'].title[0] ? pr['이름'].title[0].plain_text : '(이름없음)';
+      var typeLabel = pr['타입']&&pr['타입'].select ? pr['타입'].select.name : '';
+      // 라벨 → 내부 코드 역변환
+      var typeCode = '';
+      Object.keys(FILE_TYPE_LABEL).forEach(function(k){ if(FILE_TYPE_LABEL[k]===typeLabel) typeCode = k; });
+      var fileObj = pr['파일']&&pr['파일'].files&&pr['파일'].files[0] ? pr['파일'].files[0] : null;
+      var url = '';
+      if(fileObj){
+        if(fileObj.type==='file' && fileObj.file) url = fileObj.file.url;
+        else if(fileObj.type==='external' && fileObj.external) url = fileObj.external.url;
+        else if(fileObj.type==='file_upload') url = ''; // attached 후엔 file 타입으로 변환됨
+      }
+      var uploadedAt = pr['업로드일시']&&pr['업로드일시'].rich_text&&pr['업로드일시'].rich_text[0] ? pr['업로드일시'].rich_text[0].plain_text : (p.created_time||'');
+      return {
+        pageId: p.id,
+        name: name,
+        type: typeCode,
+        typeLabel: typeLabel,
+        url: url,
+        period: period,
+        uploadedAt: uploadedAt
+      };
+    });
+    // 최근 업로드 우선
+    items.sort(function(a,b){ return (b.uploadedAt||'').localeCompare(a.uploadedAt||''); });
+    S.files[period] = items;
+    return items;
+  }catch(err){
+    console.warn('파일 목록 로드 실패:', err.message);
+    return [];
+  }
+}
+
+// 파일 메타 페이지 archive (= 목록에서 제거. 첨부 자체는 Notion 정책상 즉시 삭제 안됨)
+async function deleteFileMeta(pageId){
+  try{
+    var resp = await fetch(NOTION_PROXY+'/pages/'+pageId,{
+      method:'PATCH',
+      headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'},
+      body: JSON.stringify({archived:true})
+    });
+    return resp.ok;
+  }catch(e){ return false; }
+}
+
+// 파일 목록을 화면에 렌더링 (각 업로드 칸 하단)
+function renderFileList(period){
+  var allTypes = ['sales','sample','exp','cn'];
+  var items = (S.files && S.files[period]) || [];
+  allTypes.forEach(function(type){
+    var el = document.getElementById('files-'+type);
+    if(!el) return;
+    var byType = items.filter(function(f){return f.type===type;});
+    if(!byType.length){
+      el.innerHTML = '';
+      el.style.display = 'none';
+      return;
+    }
+    el.style.display = 'block';
+    var rows = byType.map(function(f){
+      var date = f.uploadedAt ? f.uploadedAt.slice(0,10) : '';
+      var dl = f.url ?
+        '<a href="'+f.url+'" target="_blank" rel="noopener" download="'+f.name+'" style="color:var(--ac);text-decoration:none;font-size:11px" title="'+f.name+'">📄 '+f.name+'</a>' :
+        '<span style="color:var(--mu);font-size:11px">📄 '+f.name+' (URL 없음)</span>';
+      return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 8px;background:#fff;border:1px solid var(--bd);border-radius:6px;margin-bottom:4px">'+
+             '<div style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+dl+'</div>'+
+             '<div style="font-size:10px;color:var(--hi)">'+date+'</div>'+
+             '<button onclick="event.stopPropagation();removeUploadedFile(\''+f.pageId+'\',\''+period+'\')" style="background:none;border:none;color:var(--rd);cursor:pointer;font-size:14px;padding:0 2px" title="목록에서 제거">×</button>'+
+             '</div>';
+    }).join('');
+    el.innerHTML = '<div style="font-size:10px;color:var(--mu);font-weight:600;margin-bottom:4px">📎 등록된 파일 ('+byType.length+')</div>'+rows;
+  });
+}
+
+async function removeUploadedFile(pageId, period){
+  if(!confirm('이 파일을 목록에서 제거할까요?\n(노션 첨부파일 자체는 정책상 보관됩니다)')) return;
+  var ok = await deleteFileMeta(pageId);
+  if(ok){
+    if(S.files[period]) S.files[period] = S.files[period].filter(function(f){return f.pageId !== pageId;});
+    renderFileList(period);
+    toast('파일 목록에서 제거됨','ok');
+  } else {
+    toast('제거 실패','err');
+  }
+}
+
+// ─────────────────────────────────────────
+// [신규] localStorage 대체 헬퍼 — 모든 ek_records 접근은 여기로
+// ─────────────────────────────────────────
+function getRecordsDB(){
+  // 모든 곳에서 이 함수만 사용. localStorage는 일절 사용하지 않음.
+  return S.records || {};
+}
+function setRecord(period, rec){
+  if(!S.records) S.records = {};
+  S.records[period] = rec;
+}
+function deleteRecord(period){
+  if(S.records) delete S.records[period];
+}
+
+// [신규] Notion PNL DB에서 모든 월별 스냅샷 로드
+async function loadAllRecordsFromNotion(){
+  try{
+    var all = {};
+    var hasMore = true;
+    var startCursor = undefined;
+    while(hasMore){
+      var body = {page_size:100};
+      if(startCursor) body.start_cursor = startCursor;
+      var resp = await fetch(NOTION_PROXY+'/databases/'+NOTION_PNL_DB+'/query',{
+        method:'POST', headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'},
+        body:JSON.stringify(body)
+      });
+      if(!resp.ok) break;
+      var data = await resp.json();
+      (data.results||[]).filter(function(p){return !p.archived;}).forEach(function(p){
+        var pr = p.properties;
+        var period = pr['이름']&&pr['이름'].title&&pr['이름'].title[0] ? pr['이름'].title[0].plain_text : '';
+        if(!period) return;
+        var num = function(k){ return pr[k]&&pr[k].number!=null ? pr[k].number : 0; };
+        var rev = num('총매출');
+        var cogs = num('매입원가');
+        var fixed = num('고정비');
+        // 같은 기간 페이지가 여러개 있으면 가장 최근 것만
+        var existing = all[period];
+        var thisTime = p.last_edited_time || p.created_time || '';
+        if(existing && existing._t && existing._t > thisTime) return;
+        all[period] = {
+          period:period,
+          rev: rev,
+          revD: num('납품매출'),
+          revS: num('샘플청구'),
+          revDev: num('개발비청구'),
+          cogs: cogs,
+          fixed: fixed,
+          ratio: num('원가율'),
+          profit: rev - cogs - fixed,
+          // 거래처별 분해 데이터는 PNL DB에 없으므로 빈 객체로 시작
+          bySales:{}, byDelivery:{}, bySampleDev:{},
+          savedAt: p.last_edited_time || p.created_time || new Date().toISOString(),
+          _pageId: p.id,
+          _t: thisTime
+        };
+      });
+      hasMore = !!data.has_more;
+      startCursor = data.next_cursor;
+    }
+    S.records = all;
+    _recordsLoaded = true;
+    return true;
+  }catch(e){
+    console.warn('월별 스냅샷 로드 실패:', e.message);
+    return false;
+  }
+}
 
 // ─────────────────────────────────────────
 //  Init — 페이지 로드 시 모든 Notion 데이터 자동 로드
@@ -633,42 +893,40 @@ var _fixedSyncing = false;
   var d=new Date();
   document.getElementById('g-period').value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
 
-  // 로컬 고정비 우선 적용
-  var savedFixed = localStorage.getItem('ek_fixed');
-  if(savedFixed){
-    try{
-      var parsed = JSON.parse(savedFixed) || [];
-      var seen = {};
-      S.fixed = parsed.filter(function(f){
-        if(!f.label) return false;
-        var k = f.label.trim()+'__'+f.amount;
-        if(seen[k]) return false;
-        seen[k] = true;
-        return true;
-      });
-      if(S.fixed.length !== parsed.length) localStorage.setItem('ek_fixed', JSON.stringify(S.fixed));
-    } catch(e){ S.fixed = []; }
-  } else { S.fixed = []; }
+  // [수정] 고정비는 localStorage 사용 안 함 — Notion에서만 로드
+  S.fixed = [];
 
   _fixedLoading = true;
   renderFixed();
   _fixedLoading = false;
 
   var initPeriod = document.getElementById('g-period').value;
-  renderSavedSummary(initPeriod);
+  // [수정] 청구관리도 localStorage 사용 안 함 — Notion에서만 로드
+  S.billing = [];
+  renderBilling();
+  // 매출/샘플 표는 records 로드 후에 다시 그려야 하므로 빈 상태로만 시작
   renderSales();
   renderSample();
-  loadBilling();
-  renderBilling();
 
   // ── [수정] 페이지 열릴 때 Notion에서 모든 데이터 자동 로드 ──
   (async function(){
     try {
       document.getElementById('notion-sync-status').textContent = '🔄 Notion에서 모든 데이터 불러오는 중...';
+      // [신규] 월별 손익 스냅샷 먼저 로드 (대시보드/요약에 필요)
+      var recOk = await loadAllRecordsFromNotion();
       var fixedOk = await loadFixedFromNotion();
       await loadBillingFromNotion(true);
       var periodOk = await loadPeriodFromNotion(initPeriod, true);
+      // [신규] 현재 기간의 등록 파일 목록 로드
+      await loadFilesFromNotion(initPeriod);
+      renderFileList(initPeriod);
+      // 스냅샷 로드 후 요약 카드 다시 렌더
+      renderSavedSummary(initPeriod);
+      // 매출/샘플 표는 currentPeriod에 라이브 데이터 없을 때 스냅샷 기반 요약을 보여주므로 다시 렌더
+      if(!S.sales || !S.sales.length) renderSales();
+      if(!S.sample || !S.sample.length) renderSample();
       var parts = [];
+      if(recOk) parts.push('월별손익('+Object.keys(S.records).length+'건)');
       if(fixedOk) parts.push('고정비');
       if(periodOk) parts.push(initPeriod+' 상세');
       parts.push('청구관리');
@@ -687,9 +945,9 @@ async function reloadFromNotion(){
   if(!confirm('Notion에서 ['+period+'] 데이터와 청구관리, 고정비를 새로 불러올까요?\n\n현재 업로드된 파일 데이터는 덮어쓰입니다.')) return;
   try {
     document.getElementById('notion-sync-status').textContent = '🔄 Notion에서 새로 로드 중...';
-    S.sales=null; S.sample=null; S.ek=null; S.exp=null;
+    S.sales=null; S.sample=null; S.exp=null;
     S.cn=null; S.cnList=[]; S.manual=[];
-    ['sales','sample','ek','exp','cn'].forEach(function(t){
+    ['sales','sample','exp','cn'].forEach(function(t){
       var dz=document.getElementById('dz-'+t);
       var ico=document.getElementById('i-'+t);
       var st=document.getElementById('s-'+t);
@@ -699,9 +957,12 @@ async function reloadFromNotion(){
       if(st) st.textContent='';
       if(fi) fi.value='';
     });
+    await loadAllRecordsFromNotion(); // [신규] 월별 스냅샷 새로고침
     await loadFixedFromNotion();
     await loadBillingFromNotion(true);
     await loadPeriodFromNotion(period);
+    await loadFilesFromNotion(period); // [신규] 파일 목록도 새로고침
+    renderFileList(period);
     renderSales(); renderSample(); renderPurchase(); renderManual(); renderFixed();
     calcPnL(); renderInvArea(); renderBilling(); renderSavedSummary(period);
     toast('✅ Notion에서 최신 데이터를 불러왔습니다','ok');
@@ -737,7 +998,7 @@ function dzo(e,id){e.preventDefault();document.getElementById(id).classList.add(
 function dzl(id){document.getElementById(id).classList.remove('drag')}
 function dzd(e,type){
   e.preventDefault();
-  var dzId={'sales':'dz-sales','sample':'dz-sample','ek':'dz-ek','exp':'dz-exp','cn':'dz-cn'}[type];
+  var dzId={'sales':'dz-sales','sample':'dz-sample','exp':'dz-exp','cn':'dz-cn'}[type];
   document.getElementById(dzId).classList.remove('drag');
   var files=e.dataTransfer.files;
   if(!files||!files.length) return;
@@ -760,7 +1021,6 @@ function rf(file,type){
       var _p=document.getElementById('g-period').value;
       if(type==='sales') {S.sales =parseSales(wb); markDz('dz-sales','i-sales','s-sales',file.name,S.sales.length+'건'); renderSales(); calcPnL(); autoSyncNotion(); if(_p) syncSalesToNotion(_p);}
       if(type==='sample'){S.sample=parseSample(wb);markDz('dz-sample','i-sample','s-sample',file.name,S.sample.length+'건'); renderSample(); calcPnL(); autoSyncNotion(); if(_p) syncSampleToNotion(_p);}
-      if(type==='ek')    {S.ek    =parseEK(wb);    markDz('dz-ek','i-ek','s-ek',file.name,S.ek.length+'건'); renderPurchase(); calcPnL(); autoSyncNotion(); if(_p) syncCogsToNotion(_p);}
       if(type==='exp')   {S.exp   =parseExp(wb);   markDz('dz-exp','i-exp','s-exp',file.name,S.exp.length+'건'); renderPurchase(); calcPnL(); autoSyncNotion(); if(_p) syncCogsToNotion(_p);}
       if(type==='cn'){
         var parsed=parseCN(wb);
@@ -772,6 +1032,22 @@ function rf(file,type){
         renderPurchase(); calcPnL(); autoSyncNotion();
         // [수정] 중국 인보이스도 매입원가 DB에 저장
         if(_p) syncCogsToNotion(_p);
+      }
+      // [신규] 파일 자체를 노션 파일DB에 보관 (백그라운드)
+      if(_p && NOTION_FILES_DB){
+        var extra = '';
+        if(type==='cn' && parsed) extra = 'USD '+ (parsed.usd||0).toFixed(0) + (parsed.invDate?' / '+parsed.invDate:'');
+        uploadFileToNotion(file, type, _p, extra).then(function(meta){
+          if(meta){
+            if(!S.files[_p]) S.files[_p] = [];
+            S.files[_p].unshift(meta);
+            // url은 attach 직후 응답에는 없을 수 있으므로 다시 한번 로드
+            loadFilesFromNotion(_p).then(function(){ renderFileList(_p); });
+            toast('📎 파일 노션 보관 완료: '+file.name,'ok');
+          } else {
+            toast('⚠️ 파일 보관 실패: '+file.name+' (계산은 정상)','err');
+          }
+        });
       }
     }catch(err){toast(err.message,'err'); console.error(err);}
   };
@@ -788,7 +1064,6 @@ function czd(type){
   var m={
     'sales': ['dz-sales','i-sales','s-sales','fi-sales'],
     'sample':['dz-sample','i-sample','s-sample','fi-sample'],
-    'ek':    ['dz-ek','i-ek','s-ek','fi-ek'],
     'exp':   ['dz-exp','i-exp','s-exp','fi-exp'],
     'cn':    ['dz-cn','i-cn','s-cn','fi-cn']
   };
@@ -833,23 +1108,6 @@ function parseSample(wb){
     var isDev=!!(r[8]&&String(r[8]).includes('개발비'));
     items.push({date:String(r[0]), prod:String(r[1]||''), pcode:String(r[2]||''), qty:parseFloat(r[3])||1, price:parseFloat(r[5])||0, amount:amt, cust:String(r[7]||''), isDev:isDev, type:isDev?'개발비':'샘플원가'});
   }
-  return items;
-}
-
-function parseEK(wb){
-  var items=[];
-  wb.SheetNames.forEach(function(sn){
-    if(/^(최종|Sheet\d*|sheet\d*)$/.test(sn.trim())) return;
-    var ws=wb.Sheets[sn];
-    var rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
-    var h=fhdr(rows); if(h<0) return;
-    for(var i=h+1;i<rows.length;i++){
-      var r=rows[i]; if(!r[0]||skip(r[0])) continue;
-      var sup=parseFloat(r[6]);
-      if(isNaN(sup)||sup<=0) continue;
-      items.push({sheet:sn,date:String(r[0]),cust:String(r[1]||''),prod:String(r[2]||''),pcode:String(r[3]||''),qty:parseFloat(r[4])||0,price:parseFloat(r[5])||0,supply:sup});
-    }
-  });
   return items;
 }
 
@@ -930,7 +1188,7 @@ function parseCN(wb){
 function renderSales(){
   if(!S.sales||!S.sales.length){
     var period = document.getElementById('g-period').value;
-    try{ var rec = period && JSON.parse(localStorage.getItem('ek_records')||'{}')[period]; } catch(e){ var rec = null; }
+    try{ var rec = period && getRecordsDB()[period]; } catch(e){ var rec = null; }
     rec = sanitizeRecord(rec);
     var byDlv = rec&&rec.byDelivery;
     if(byDlv && Object.keys(byDlv).length){
@@ -981,7 +1239,7 @@ function renderSales(){
 function renderSample(){
   if(!S.sample||!S.sample.length){
     var period = document.getElementById('g-period').value;
-    try{ var rec2 = period && JSON.parse(localStorage.getItem('ek_records')||'{}')[period]; } catch(e){ var rec2 = null; }
+    try{ var rec2 = period && getRecordsDB()[period]; } catch(e){ var rec2 = null; }
     rec2 = sanitizeRecord(rec2);
     var bySmp = rec2&&rec2.bySampleDev;
     if(bySmp && Object.keys(bySmp).length){
@@ -1054,10 +1312,6 @@ function updateManualTotal(){
 
 function renderPurchase(){
   var rows=[];
-  if(S.ek&&S.ek.length){
-    var t=S.ek.reduce(function(s,i){return s+i.supply},0);
-    rows.push({type:'EK정산',cls:'bEK',vendor:'통합EK정산 파일 (공급가액 합산)',amount:t,note:S.ek.length+'건'});
-  }
   if(S.exp&&S.exp.length){
     S.exp.forEach(function(it){rows.push({type:'지출내역',cls:'bExp',vendor:it.vendor,amount:it.amount,note:it.inclVat?'부가세 포함→순액':'순액'})});
   }
@@ -1091,7 +1345,7 @@ function renderPurchase(){
 async function resetFixedCosts(){
   if(!confirm('고정비 항목을 모두 초기화할까요?\nNotion에서도 삭제됩니다.')) return;
   S.fixed = [];
-  localStorage.removeItem('ek_fixed');
+  /* localStorage.removeItem('ek_fixed'); 제거됨 */
   renderFixed();
   toast('고정비 초기화 중...','ok');
   try{
@@ -1120,9 +1374,17 @@ function renderFixed(){
 function updateFixedTotal(){var t=S.fixed.reduce(function(s,f){return s+f.amount},0);document.getElementById('fixed-total').textContent=won(t)}
 
 function saveFixed(){
-  localStorage.setItem('ek_fixed',JSON.stringify(S.fixed));
+  /* localStorage 사용 안 함 */
   clearTimeout(saveFixed._timer);
-  saveFixed._timer = setTimeout(function(){ syncFixedToNotion(); }, 1500);
+  saveFixed._timer = setTimeout(function(){
+    syncFixedToNotion();
+    // [신규] 고정비가 바뀌면 현재 기간 스냅샷도 갱신 (손익 일관성)
+    var period = document.getElementById('g-period').value;
+    if(period && getRecordsDB()[period]){
+      // 데이터가 있는 경우에만 재저장 (autoSync 우회 호출)
+      try{ savePeriod(); }catch(e){ console.warn('고정비 변경 후 스냅샷 갱신 실패:', e.message); }
+    }
+  }, 1500);
 }
 
 async function syncFixedToNotion(){
@@ -1182,7 +1444,7 @@ async function loadFixedFromNotion(){
     });
     if(!items.length) return false;
     S.fixed=items;
-    localStorage.setItem('ek_fixed',JSON.stringify(S.fixed));
+    /* localStorage.setItem('ek_fixed',JSON.stringify(S.fixed)); 제거됨 */
     _fixedLoading = true;
     renderFixed();
     _fixedLoading = false;
@@ -1197,7 +1459,6 @@ function totalSales(){return totalSalesDelivery() + totalSampleRev() + totalDevR
 function totalCogs(){
   var t = 0;
   var rate = parseFloat(document.getElementById('usd-rate').value)||1350;
-  if(S.ek)  t += S.ek.reduce(function(s,i){return s+i.supply},0);
   if(S.exp) t += S.exp.reduce(function(s,i){return s+i.amount},0);
   if(S.cnList&&S.cnList.length) S.cnList.forEach(function(inv){t+=inv.usd*rate;});
   else if(S.cn) t+=S.cn.usd*rate;
@@ -1212,15 +1473,16 @@ function totalFixed(){return S.fixed.reduce(function(s,f){return s+f.amount},0)}
 // ─────────────────────────────────────────
 function calcPnL(){
   var period = document.getElementById('g-period').value;
-  var db = JSON.parse(localStorage.getItem('ek_records')||'{}');
+  var db = getRecordsDB();
   var rec = db[period];
 
   var hasLiveData = (S.sales&&S.sales.length)||(S.sample&&S.sample.length)||
-                   (S.ek&&S.ek.length)||(S.exp&&S.exp.length)||
+                   (S.exp&&S.exp.length)||
                    (S.cnList&&S.cnList.length)||(S.manual&&S.manual.length);
 
   var rev, cogs, fx, revDelivery, revSample, revDev, op, gross, cogsR;
-  var ekCogs=0, expCogs=0, cnCogs=0, manCogs=0;
+  var expCogs=0, cnCogs=0, manCogs=0;
+  var ekCogs=0; // [legacy] EK정산 제거됨, 호환용으로 0 유지
   var rate = parseFloat(document.getElementById('usd-rate').value)||1350;
   var currentFx = totalFixed();
 
@@ -1229,13 +1491,12 @@ function calcPnL(){
     revSample   = totalSampleRev();
     revDev      = totalDevRev();
     rev         = revDelivery + revSample + revDev;
-    ekCogs  = S.ek  ? S.ek.reduce(function(s,i){return s+i.supply},0)  : 0;
     expCogs = S.exp ? S.exp.reduce(function(s,i){return s+i.amount},0) : 0;
     cnCogs  = 0;
     if(S.cnList&&S.cnList.length) S.cnList.forEach(function(inv){cnCogs+=inv.usd*rate;});
     else if(S.cn) cnCogs = S.cn.usd * rate;
     manCogs = S.manual.reduce(function(s,m){return s+m.amount},0);
-    cogs    = ekCogs + expCogs + cnCogs + manCogs;
+    cogs    = expCogs + cnCogs + manCogs;
     fx      = currentFx;
   } else if(rec){
     rev         = rec.rev   ||0;
@@ -1287,7 +1548,7 @@ function calcPnL(){
   Object.keys(byS).filter(function(k){return k&&k!=='undefined';}).sort(function(a,b){return byS[b]-byS[a]}).forEach(function(c){
     var s=byS[c];
     var sheetKey=cc(c).toUpperCase();
-    var p=S.ek?S.ek.filter(function(i){return i.sheet.toUpperCase()===sheetKey}).reduce(function(s,i){return s+i.supply},0):0;
+    var p=0; // [수정] EK정산 제거됨, 거래처별 원가 매칭 비활성화
     var r=s>0?p/s*100:0;
     var st=p===0?'<span class="b bNone">원가미집계</span>':r>50?'<span class="b bBad">위험</span>':r>35?'<span class="b bWarn">주의</span>':'<span class="b bGood">양호</span>';
     var cls=(p>0&&r>35)?' class="tr-warn"':'';
@@ -1299,10 +1560,12 @@ function calcPnL(){
   if(revDelivery>0) brkRows.push({l:'납품 매출',     v:revDelivery, rev:true});
   if(revSample>0)   brkRows.push({l:'샘플 청구',     v:revSample,   rev:true});
   if(revDev>0)      brkRows.push({l:'개발비 청구',   v:revDev,      rev:true});
-  if(ekCogs>0)      brkRows.push({l:'EK정산 원가',   v:ekCogs,      rev:false});
   if(expCogs>0)     brkRows.push({l:'지출내역 원가', v:expCogs,     rev:false});
   if(cnCogs>0)      brkRows.push({l:'중국 인보이스', v:cnCogs,      rev:false});
   if(manCogs>0)     brkRows.push({l:'직접 입력',     v:manCogs,     rev:false});
+  // [신규] 저장 데이터에 옛 EK정산 원가가 있으면 "기타 원가"로 표시 (합계 일관성 유지)
+  var legacyExtra = cogs - (expCogs + cnCogs + manCogs);
+  if(legacyExtra > 0) brkRows.push({l:'기타 원가 (구 EK정산)', v:legacyExtra, rev:false});
   if(fx>0)          brkRows.push({l:'고정비',         v:fx,          rev:false});
   var brkHtml=brkRows.map(function(it){
     var r=rev>0?Math.round(it.v/rev*100):0;
@@ -1316,10 +1579,10 @@ function calcPnL(){
     {label:'② 샘플 청구 (매출)',    val:revSample,   note:'견적서현황 — 샘플원가 항목',      bold:false, sub:true},
     {label:'③ 개발비 청구 (매출)',  val:revDev,      note:'견적서현황 — 개발비 항목',        bold:false, sub:true},
     {label:'= 총 매출액',           val:rev,         note:'',                                bold:true,  sub:false},
-    {label:'(-) EK정산 원가',       val:ekCogs,      note:'통합EK정산 공급가액',              bold:false, sub:true},
     {label:'(-) 지출내역 원가',     val:expCogs,     note:'월말 청구내역서 (운송·부자재 등)', bold:false, sub:true},
     {label:'(-) 중국 인보이스',     val:cnCogs,      note:'USD × '+rate+'원',                bold:false, sub:true},
     {label:'(-) 직접 입력 원가',    val:manCogs,     note:'수동 입력',                        bold:false, sub:true},
+    {label:'(-) 기타 원가',         val:legacyExtra, note:'구 EK정산 등 (저장 시점 기준)',    bold:false, sub:true},
     {label:'= 매출 총이익',         val:gross,       note:'',                                bold:true,  sub:false},
     {label:'(-) 고정비',            val:fx,          note:'임직원·임대·통신 등 (현재 고정비 기준)', bold:false, sub:true},
     {label:'= 영업이익',            val:op,          note:'',                                bold:true,  sub:false},
@@ -1335,18 +1598,18 @@ function calcPnL(){
 function deletePeriodData(){
   var period = document.getElementById('g-period').value;
   if(!period){ toast('기간을 선택해주세요','err'); return; }
-  var db = JSON.parse(localStorage.getItem('ek_records')||'{}');
+  var db = getRecordsDB();
   var keys = Object.keys(db);
   var hasSaved = !!db[period];
-  var hasLive = !!(S.sales||S.sample||S.ek||S.exp||(S.cnList&&S.cnList.length));
+  var hasLive = !!(S.sales||S.sample||S.exp||(S.cnList&&S.cnList.length));
   var msg = '['+period+'] 데이터를 삭제할까요?\n저장된 기간: '+(keys.length?keys.join(', '):'없음')+'\n매칭: '+(hasSaved?'있음':'없음')+' / 현재 파일: '+(hasLive?'있음':'없음');
   if(!confirm(msg)) return;
   if(hasSaved){
     delete db[period];
-    localStorage.setItem('ek_records', JSON.stringify(db));
+    /* localStorage.setItem('ek_records', ...) 제거됨 - Notion이 단일 진실 원천 */
   }
-  S.sales=null; S.sample=null; S.ek=null; S.exp=null; S.cn=null; S.cnList=[]; S.manual=[];
-  ['sales','sample','ek','exp','cn'].forEach(function(t){
+  S.sales=null; S.sample=null; S.exp=null; S.cn=null; S.cnList=[]; S.manual=[];
+  ['sales','sample','exp','cn'].forEach(function(t){
     var dz=document.getElementById('dz-'+t);
     var ico=document.getElementById('i-'+t);
     var st=document.getElementById('s-'+t);
@@ -1851,19 +2114,6 @@ async function syncCogsToNotion(period){
         await fetch(NOTION_PROXY+'/pages/'+qD.results[i].id,{method:'PATCH', headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'}, body:JSON.stringify({archived:true})});
       }
     }
-    if(S.ek&&S.ek.length){
-      for(var i=0;i<S.ek.length;i++){
-        var it=S.ek[i];
-        await fetch(NOTION_PROXY+'/pages',{method:'POST', headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'}, body:JSON.stringify({parent:{database_id:NOTION_COGS_DB}, properties:{
-          '항목명':{title:[{text:{content:it.prod||''}}]},
-          '기간':  {rich_text:[{text:{content:period}}]},
-          '구분':  {rich_text:[{text:{content:'EK정산'}}]},
-          '거래처':{rich_text:[{text:{content:it.cust||''}}]},
-          '금액':  {number:Math.round(it.supply||0)},
-          '비고':  {rich_text:[{text:{content:it.pcode||''}}]}
-        }})});
-      }
-    }
     if(S.exp&&S.exp.length){
       for(var i=0;i<S.exp.length;i++){
         var it=S.exp[i];
@@ -1914,7 +2164,7 @@ async function loadPeriodFromNotion(period, silent){
   var status = document.getElementById('notion-sync-status');
   if(status && !silent) status.textContent='🔄 Notion에서 데이터 로드 중...';
   try{
-    var loaded = {sales:[], sample:[], ek:[], exp:[], cnList:{}, manual:[]};
+    var loaded = {sales:[], sample:[], exp:[], cnList:{}, manual:[]};
 
     var r1 = await fetch(NOTION_PROXY+'/databases/'+NOTION_SALES_DB+'/query',{method:'POST', headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'}, body:JSON.stringify({page_size:100, filter:{property:'기간', rich_text:{equals:period}}})});
     if(r1.ok){
@@ -1955,9 +2205,7 @@ async function loadPeriodFromNotion(period, silent){
         var pr=p.properties;
         var getText=function(k){return pr[k]&&pr[k].rich_text&&pr[k].rich_text[0]?pr[k].rich_text[0].plain_text:'';};
         var gubun=getText('구분'), amt=pr['금액']?pr['금액'].number:0;
-        if(gubun==='EK정산'){
-          loaded.ek.push({sheet:getText('거래처'),cust:getText('거래처'), prod:getText('항목명'),pcode:getText('비고'),supply:amt,qty:0,price:0,date:''});
-        } else if(gubun==='지출내역'){
+        if(gubun==='지출내역'){
           loaded.exp.push({vendor:getText('거래처'),amount:amt,rawAmt:amt, inclVat:getText('비고').includes('부가세')});
         } else if(gubun==='중국인보이스'){
           var rate=parseFloat(document.getElementById('usd-rate').value)||1350;
@@ -1974,7 +2222,7 @@ async function loadPeriodFromNotion(period, silent){
       });
     }
 
-    var hasData = loaded.sales.length||loaded.sample.length||loaded.ek.length||loaded.exp.length||Object.keys(loaded.cnList).length||loaded.manual.length;
+    var hasData = loaded.sales.length||loaded.sample.length||loaded.exp.length||Object.keys(loaded.cnList).length||loaded.manual.length;
     if(!hasData){
       if(status && !silent) status.textContent='📭 Notion에 '+period+' 데이터 없음';
       return false;
@@ -1983,7 +2231,6 @@ async function loadPeriodFromNotion(period, silent){
     if(loaded.manual.length){ S.manual=loaded.manual; renderManual(); }
     if(loaded.sales.length){ S.sales=loaded.sales; markDz('dz-sales','i-sales','s-sales','[Notion] '+period,loaded.sales.length+'건'); }
     if(loaded.sample.length){ S.sample=loaded.sample; markDz('dz-sample','i-sample','s-sample','[Notion] '+period,loaded.sample.length+'건'); }
-    if(loaded.ek.length){ S.ek=loaded.ek; markDz('dz-ek','i-ek','s-ek','[Notion] '+period,loaded.ek.length+'건'); }
     if(loaded.exp.length){ S.exp=loaded.exp; markDz('dz-exp','i-exp','s-exp','[Notion] '+period,loaded.exp.length+'건'); }
     var cnArr=Object.keys(loaded.cnList).map(function(k){return loaded.cnList[k];});
     if(cnArr.length){ S.cnList=cnArr; S.cn=cnArr[0]; markDz('dz-cn','i-cn','s-cn','[Notion] '+period,cnArr.length+'개 · USD '+cnArr.reduce(function(s,i){return s+i.usd;},0).toFixed(0)); }
@@ -2017,7 +2264,7 @@ function renderSavedSummary(period){
   var card = document.getElementById('saved-summary-card');
   if(!card) return;
   try{
-    var db  = JSON.parse(localStorage.getItem('ek_records')||'{}');
+    var db  = getRecordsDB();
     var rec = db[period];
     if(!rec){ card.style.display='none'; return; }
     rec = sanitizeRecord(rec) || {};
@@ -2092,7 +2339,7 @@ function sanitizeRecord(rec){
 async function onPeriodChange(){
   var period = document.getElementById('g-period').value;
   if(!period) return;
-  var db  = JSON.parse(localStorage.getItem('ek_records')||'{}');
+  var db  = getRecordsDB();
   var rec = db[period];
   var parts = period.split('-');
   if(parts.length===2){ dashYear_=parseInt(parts[0]); dashMonth_=parseInt(parts[1]); }
@@ -2100,10 +2347,13 @@ async function onPeriodChange(){
   if(!S.sales||!S.sales.length) renderSales();
   if(!S.sample||!S.sample.length) renderSample();
 
-  var hasLive = (S.sales&&S.sales.length)||(S.sample&&S.sample.length)||(S.ek&&S.ek.length)||(S.exp&&S.exp.length);
+  var hasLive = (S.sales&&S.sales.length)||(S.sample&&S.sample.length)||(S.exp&&S.exp.length);
   if(!hasLive){
     await loadPeriodFromNotion(period);
   }
+  // [신규] 기간 바뀌면 해당 기간의 파일 목록도 갱신
+  await loadFilesFromNotion(period);
+  renderFileList(period);
   if(rec){ toast('📂 '+period+' 저장 데이터 불러옴','ok'); calcPnL(); }
   else { toast('📭 '+period+' 저장된 데이터 없음 — 파일을 업로드하세요','ok'); }
 }
@@ -2111,7 +2361,7 @@ async function onPeriodChange(){
 async function savePeriod(){
   var period=document.getElementById('g-period').value;
   if(!period){toast('기간을 선택해주세요','err');return;}
-  if(!S.sales&&!S.ek&&!S.sample){toast('데이터를 먼저 입력해주세요','err');return;}
+  if(!S.sales&&!S.sample){toast('데이터를 먼저 입력해주세요','err');return;}
 
   var rev=totalSales(), cogs=totalCogs(), fx=totalFixed();
   var revD=totalSalesDelivery(), revS=totalSampleRev(), revDev=totalDevRev();
@@ -2120,7 +2370,7 @@ async function savePeriod(){
 
   // [수정] 매입원가 세부값도 저장
   var rate=parseFloat(document.getElementById('usd-rate').value)||1350;
-  var ekCogs = S.ek ? S.ek.reduce(function(s,i){return s+i.supply},0) : 0;
+  var ekCogs = 0; // [legacy] EK정산 제거됨
   var expCogs = S.exp ? S.exp.reduce(function(s,i){return s+i.amount},0) : 0;
   var cnCogs = 0;
   if(S.cnList&&S.cnList.length) S.cnList.forEach(function(inv){cnCogs+=inv.usd*rate;});
@@ -2149,12 +2399,29 @@ async function savePeriod(){
     ekCogs:ekCogs, expCogs:expCogs, cnCogs:cnCogs, manCogs:manCogs,
     profit:rev-cogs-fx,ratio:ratio,bySales:bySales, byDelivery:byDelivery,bySampleDev:bySampleDev,
     savedAt:new Date().toISOString()};
-  var db=JSON.parse(localStorage.getItem('ek_records')||'{}');
-  db[period]=record;
-  localStorage.setItem('ek_records',JSON.stringify(db));
+  setRecord(period, record); // [수정] 메모리 캐시에 저장 (localStorage 사용 안 함)
 
   try{
     document.getElementById('notion-sync-status').textContent='🔄 Notion 저장 중...';
+    // [신규] 같은 기간에 이미 저장된 페이지가 있으면 archive (중복 방지)
+    try{
+      var qDup = await fetch(NOTION_PROXY+'/databases/'+NOTION_PNL_DB+'/query',{
+        method:'POST', headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'},
+        body:JSON.stringify({page_size:50, filter:{property:'이름', title:{equals:period}}})
+      });
+      if(qDup.ok){
+        var dDup = await qDup.json();
+        for(var di=0;di<(dDup.results||[]).length;di++){
+          if(!dDup.results[di].archived){
+            await fetch(NOTION_PROXY+'/pages/'+dDup.results[di].id,{
+              method:'PATCH', headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'},
+              body:JSON.stringify({archived:true})
+            });
+          }
+        }
+      }
+    }catch(eDup){ console.warn('중복 archive 실패(계속 진행):', eDup.message); }
+
     var resp=await fetch(NOTION_PROXY+'/pages',{method:'POST', headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'}, body:JSON.stringify({
       parent:{database_id:NOTION_PNL_DB},
       properties:{
@@ -2171,17 +2438,25 @@ async function savePeriod(){
       }
     })});
     if(resp.ok){
+      // [신규] 새로 생성된 페이지 ID를 캐시에 반영
+      try{
+        var saved = await resp.json();
+        if(saved && saved.id){
+          record._pageId = saved.id;
+          record._t = saved.last_edited_time || saved.created_time || new Date().toISOString();
+        }
+      }catch(eId){}
       document.getElementById('notion-sync-status').textContent='✅ Notion 저장 완료 ('+period+')';
-      toast('💾 로컬 + Notion 저장 완료 ('+period+')','ok');
+      toast('💾 Notion 저장 완료 ('+period+')','ok');
       renderSavedSummary(period);
     } else {
       var err=await resp.json();
       document.getElementById('notion-sync-status').textContent='⚠️ Notion 오류: '+(err.message||resp.status);
-      toast('로컬 저장 완료 (Notion 오류)','ok');
+      toast('Notion 저장 실패','err');
     }
   }catch(e){
     document.getElementById('notion-sync-status').textContent='⚠️ Notion 연결 실패: '+e.message;
-    toast('로컬 저장 완료 (Notion 연결 실패)','ok');
+    toast('Notion 연결 실패','err');
   }
 }
 // ─────────────────────────────────────────
@@ -2217,10 +2492,10 @@ function registerBilling(cust, period, items){
   syncBillingToNotion();
 }
 
-function saveBilling(){ localStorage.setItem('ek_billing', JSON.stringify(S.billing)); }
+function saveBilling(){ /* localStorage 사용 안함 - Notion 동기화로만 저장 */ }
 function loadBilling(){
-  try{ S.billing = JSON.parse(localStorage.getItem('ek_billing')||'[]'); }
-  catch(e){ S.billing = []; }
+  /* localStorage 사용 안 함 - loadBillingFromNotion()이 대체 */
+  if(!S.billing) S.billing = [];
 }
 
 function renderBilling(){
@@ -2483,7 +2758,7 @@ function renderDashMonth(){
   document.getElementById('dash-month-tbl-title').textContent = dashYear_+'년 월별 손익 상세';
   var monthKey = dashYear_+'-'+String(dashMonth_).padStart(2,'0');
 
-  var db=JSON.parse(localStorage.getItem('ek_records')||'{}');
+  var db=getRecordsDB();
   var rec=db[monthKey];
   var unpaid=S.billing.filter(function(b){return !b.paid && b.period===monthKey;}).reduce(function(s,b){return s+(b.total||0);},0);
 
@@ -2572,7 +2847,7 @@ function renderDashYear(){
   document.getElementById('dash-year-lbl').textContent = dashYear_+'년';
   document.getElementById('dash-year-tbl-title').textContent = dashYear_+'년 월별 상세';
 
-  var db=JSON.parse(localStorage.getItem('ek_records')||'{}');
+  var db=getRecordsDB();
   var months=[];
   var totalRev=0, totalCogs2=0, totalFx=0, totalOp=0;
   for(var m=1;m<=12;m++){
@@ -2656,26 +2931,86 @@ function renderDashYear(){
   document.getElementById('dash-year-empty').style.display = totalRev>0 ? 'none' : 'block';
 }
 
-function delRec(period){
-  if(!confirm(period+' 저장 데이터를 삭제할까요?')) return;
-  var db=JSON.parse(localStorage.getItem('ek_records')||'{}');
-  delete db[period];
-  localStorage.setItem('ek_records', JSON.stringify(db));
+async function delRec(period){
+  if(!confirm(period+' 저장 데이터를 삭제할까요?\n(Notion에서도 함께 archive 처리됩니다)')) return;
+  var db=getRecordsDB();
+  var rec = db[period];
+  // [신규] Notion PNL DB에서 해당 페이지 archive
+  try{
+    if(rec && rec._pageId){
+      await fetch(NOTION_PROXY+'/pages/'+rec._pageId,{
+        method:'PATCH', headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'},
+        body:JSON.stringify({archived:true})
+      });
+    } else {
+      // _pageId가 없으면 query로 찾아서 archive
+      var qR = await fetch(NOTION_PROXY+'/databases/'+NOTION_PNL_DB+'/query',{
+        method:'POST', headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'},
+        body:JSON.stringify({page_size:50, filter:{property:'이름', title:{equals:period}}})
+      });
+      if(qR.ok){
+        var qD = await qR.json();
+        for(var i=0;i<(qD.results||[]).length;i++){
+          if(!qD.results[i].archived){
+            await fetch(NOTION_PROXY+'/pages/'+qD.results[i].id,{
+              method:'PATCH', headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'},
+              body:JSON.stringify({archived:true})
+            });
+          }
+        }
+      }
+    }
+  }catch(e){ console.warn('Notion 페이지 archive 실패:', e.message); }
+  deleteRecord(period);
   renderDash(); renderSavedSummary(document.getElementById('g-period').value);
   toast('🗑️ '+period+' 삭제 완료','ok');
 }
 
-function clearAll(){
-  if(!confirm('모든 저장 데이터(손익 기록·고정비·청구관리)를 삭제할까요? 되돌릴 수 없습니다.')) return;
-  localStorage.removeItem('ek_records');
-  localStorage.removeItem('ek_billing');
-  S.billing=[];
+async function clearAll(){
+  if(!confirm('모든 저장 데이터(손익 기록·청구관리)를 삭제할까요?\n\n⚠️ Notion DB에서도 모든 페이지가 archive 처리됩니다.\n되돌릴 수 없습니다.')) return;
+  toast('🔄 Notion에서 데이터 삭제 중...','ok');
+  // Notion PNL DB의 모든 페이지 archive
+  try{
+    var qR = await fetch(NOTION_PROXY+'/databases/'+NOTION_PNL_DB+'/query',{
+      method:'POST', headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'},
+      body:JSON.stringify({page_size:100})
+    });
+    if(qR.ok){
+      var qD = await qR.json();
+      for(var i=0;i<(qD.results||[]).length;i++){
+        if(!qD.results[i].archived){
+          await fetch(NOTION_PROXY+'/pages/'+qD.results[i].id,{
+            method:'PATCH', headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'},
+            body:JSON.stringify({archived:true})
+          });
+        }
+      }
+    }
+    // 청구관리도 archive
+    var qR2 = await fetch(NOTION_PROXY+'/databases/'+NOTION_BILLING_DB+'/query',{
+      method:'POST', headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'},
+      body:JSON.stringify({page_size:100})
+    });
+    if(qR2.ok){
+      var qD2 = await qR2.json();
+      for(var j=0;j<(qD2.results||[]).length;j++){
+        if(!qD2.results[j].archived){
+          await fetch(NOTION_PROXY+'/pages/'+qD2.results[j].id,{
+            method:'PATCH', headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'},
+            body:JSON.stringify({archived:true})
+          });
+        }
+      }
+    }
+  }catch(e){ console.warn('전체 초기화 중 오류:', e.message); }
+  S.records = {};
+  S.billing = [];
   renderDash(); renderBilling();
   toast('🗑️ 전체 초기화 완료','ok');
 }
 
 function exportHistXlsx(){
-  var db=JSON.parse(localStorage.getItem('ek_records')||'{}');
+  var db=getRecordsDB();
   var keys=Object.keys(db).sort();
   if(!keys.length){ toast('저장된 데이터가 없습니다','err'); return; }
   var aoa=[['기간','총매출','납품매출','샘플청구','개발비청구','매입원가','고정비','영업이익','원가율(%)']];
@@ -2688,7 +3023,7 @@ function exportHistXlsx(){
   var ws=XLSX.utils.aoa_to_sheet(aoa);
   ws['!cols']=[{wch:10},{wch:14},{wch:14},{wch:14},{wch:14},{wch:14},{wch:12},{wch:14},{wch:10}];
   XLSX.utils.book_append_sheet(wb,ws,'손익기록');
-  XLSX.writeFile(wb,'ek_손익기록.xlsx');
+  XLSX.writeFile(wb,'손익기록.xlsx');
   toast('Excel 다운로드 완료','ok');
 }
 
@@ -2699,7 +3034,7 @@ function injectTestData(){
   if(!confirm('테스트 데이터를 주입할까요? 현재 화면 데이터가 덮어쓰입니다.')) return;
   var custs=['주식회사제이스바이브','바이위캔드','파르테즈','토우토우','윙블링'];
   var prods=['VTES102902','VTES072601','VTES072602','VTES120401','VTES120402'];
-  S.sales=[]; S.sample=[]; S.ek=[]; S.exp=[]; S.cnList=[]; S.manual=[];
+  S.sales=[]; S.sample=[]; S.exp=[]; S.cnList=[]; S.manual=[];
   for(var i=0;i<30;i++){
     var c=custs[i%custs.length];
     var p=prods[i%prods.length];
@@ -2717,7 +3052,7 @@ function injectTestData(){
     var n=Math.floor(Math.random()*6)+3;
     for(var i=0;i<n;i++){
       var sup=Math.floor(Math.random()*100000)+30000;
-      S.ek.push({sheet:sn,date:'2026-04-'+String((i%28)+1).padStart(2,'0'),cust:custs[Math.floor(Math.random()*custs.length)],prod:'EK품목'+i,pcode:'EK'+i,qty:Math.floor(Math.random()*30)+5,price:Math.floor(sup/10),supply:sup});
+/* EK 테스트 데이터 제거됨 */
     }
   });
   S.exp=[
@@ -2738,7 +3073,7 @@ function injectTestData(){
     {label:'기타', amount:300000}
   ];
   saveFixed();
-  ['sales','sample','ek','exp','cn'].forEach(function(t){
+  ['sales','sample','exp','cn'].forEach(function(t){
     var dz=document.getElementById('dz-'+t);
     var ico=document.getElementById('i-'+t);
     var st=document.getElementById('s-'+t);
@@ -2747,7 +3082,6 @@ function injectTestData(){
     if(st){
       if(t==='sales') st.textContent='✔ [TEST] 30건';
       else if(t==='sample') st.textContent='✔ [TEST] 10건';
-      else if(t==='ek') st.textContent='✔ [TEST] '+S.ek.length+'건';
       else if(t==='exp') st.textContent='✔ [TEST] 3건';
       else if(t==='cn') st.textContent='✔ [TEST] 3개';
     }
@@ -2758,8 +3092,8 @@ function injectTestData(){
 
 function clearTestData(){
   if(!confirm('현재 화면의 데이터를 모두 초기화할까요? (저장된 기록은 보존)')) return;
-  S.sales=null; S.sample=null; S.ek=null; S.exp=null; S.cn=null; S.cnList=[]; S.manual=[];
-  ['sales','sample','ek','exp','cn'].forEach(function(t){
+  S.sales=null; S.sample=null; S.exp=null; S.cn=null; S.cnList=[]; S.manual=[];
+  ['sales','sample','exp','cn'].forEach(function(t){
     var dz=document.getElementById('dz-'+t);
     var ico=document.getElementById('i-'+t);
     var st=document.getElementById('s-'+t);
