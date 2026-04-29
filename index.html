@@ -887,6 +887,68 @@ async function loadAllRecordsFromNotion(){
 }
 
 // ─────────────────────────────────────────
+// [일회성] 옛 EK정산 데이터 자동 정리 — 매입원가 DB에서 구분=EK정산 행 archive
+// localStorage 플래그로 한 번만 실행됨
+// ─────────────────────────────────────────
+async function cleanupLegacyEkData(){
+  var result = {found:0, archived:0, errors:0};
+  try{
+    var hasMore = true;
+    var startCursor = undefined;
+    var allEkPages = [];
+    // 1단계: 구분 = "EK정산"인 모든 페이지 수집 (페이지네이션)
+    while(hasMore){
+      var body = {
+        page_size: 100,
+        filter: { property:'구분', rich_text:{equals:'EK정산'} }
+      };
+      if(startCursor) body.start_cursor = startCursor;
+      var resp = await fetch(NOTION_PROXY+'/databases/'+NOTION_COGS_DB+'/query',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'},
+        body: JSON.stringify(body)
+      });
+      if(!resp.ok){
+        console.warn('EK정산 쿼리 실패:', resp.status);
+        break;
+      }
+      var data = await resp.json();
+      (data.results||[]).filter(function(p){return !p.archived;}).forEach(function(p){
+        allEkPages.push(p.id);
+      });
+      hasMore = !!data.has_more;
+      startCursor = data.next_cursor;
+    }
+    result.found = allEkPages.length;
+
+    // 2단계: 모두 archive (병렬 처리, 5개씩 배치)
+    var BATCH = 5;
+    for(var i=0;i<allEkPages.length;i+=BATCH){
+      var batch = allEkPages.slice(i, i+BATCH);
+      var promises = batch.map(function(pageId){
+        return fetch(NOTION_PROXY+'/pages/'+pageId,{
+          method:'PATCH',
+          headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'},
+          body: JSON.stringify({archived:true})
+        }).then(function(r){
+          if(r.ok) result.archived++;
+          else result.errors++;
+        }).catch(function(){
+          result.errors++;
+        });
+      });
+      await Promise.all(promises);
+    }
+
+    return result;
+  }catch(e){
+    console.warn('EK정산 정리 중 오류:', e.message);
+    result.errors++;
+    return result;
+  }
+}
+
+// ─────────────────────────────────────────
 //  Init — 페이지 로드 시 모든 Notion 데이터 자동 로드
 // ─────────────────────────────────────────
 (function(){
@@ -931,6 +993,37 @@ async function loadAllRecordsFromNotion(){
       if(periodOk) parts.push(initPeriod+' 상세');
       parts.push('청구관리');
       document.getElementById('notion-sync-status').textContent = '✅ Notion 로드 완료: ' + parts.join(', ');
+
+      // ── [일회성] 옛 EK정산 노션 데이터 자동 정리 ──
+      // localStorage 플래그로 한 번만 실행 (다시는 실행되지 않음)
+      if(!localStorage.getItem('ek_legacy_cleanup_v1')){
+        try {
+          document.getElementById('notion-sync-status').textContent = '🧹 옛 EK정산 데이터 정리 중... (최초 1회만 실행)';
+          var cleanResult = await cleanupLegacyEkData();
+          // 플래그 저장 — 다시는 안 돌게
+          localStorage.setItem('ek_legacy_cleanup_v1', JSON.stringify({
+            done: true,
+            at: new Date().toISOString(),
+            result: cleanResult
+          }));
+          if(cleanResult.found === 0){
+            document.getElementById('notion-sync-status').textContent = '✅ Notion 로드 완료 (정리할 EK정산 데이터 없음)';
+          } else if(cleanResult.errors === 0){
+            document.getElementById('notion-sync-status').textContent = '✅ EK정산 정리 완료: '+cleanResult.archived+'건 archive됨';
+            toast('🧹 옛 EK정산 데이터 '+cleanResult.archived+'건 정리 완료','ok');
+            // 정리 후 월별 스냅샷 다시 로드 (매입원가 합계가 변경됐을 수 있음)
+            await loadAllRecordsFromNotion();
+            renderSavedSummary(initPeriod);
+          } else {
+            document.getElementById('notion-sync-status').textContent =
+              '⚠️ EK정산 정리 부분 완료: '+cleanResult.archived+'건 성공, '+cleanResult.errors+'건 실패';
+            toast('일부 EK 데이터 정리 실패 — 콘솔 확인','err');
+          }
+        } catch(eC) {
+          console.warn('EK정산 자동 정리 실패:', eC.message);
+          // 실패 시 플래그 안 남김 — 다음에 다시 시도 가능
+        }
+      }
     } catch(e) {
       console.warn('초기 Notion 로드 오류:', e.message);
       document.getElementById('notion-sync-status').textContent = '⚠️ 일부 데이터 로드 실패: '+e.message;
