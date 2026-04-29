@@ -149,6 +149,10 @@ tbody tr:hover td{background:#fafafa}
 </div>
 
 <div class="pg on" id="pg-sales">
+  <div class="note am" style="margin-bottom:12px">
+    <span>📎</span>
+    <span><b>파일 첨부 안내</b> — 엑셀을 업로드하면 손익은 자동 계산됩니다. 파일 원본 보관은 <a href="https://www.notion.so/047843c7d461464babb69c13a98a4dc2" target="_blank" rel="noopener" style="color:var(--ac);font-weight:600">📎 노션 파일 DB</a>에서 자동 생성된 행에 직접 끌어다 놓으세요.</span>
+  </div>
   <div id="saved-summary-card" style="display:none;margin-bottom:14px">
     <div class="card" style="background:var(--acbg);border:1.5px solid #e0e7ff">
       <div class="card-h" style="background:transparent">
@@ -220,6 +224,10 @@ tbody tr:hover td{background:#fafafa}
   <div class="note am">
     <span>💡</span>
     <span><b>원가 기준</b> — 상품 공급가로 산정합니다. <b>샘플·개발비(견적서현황)</b>는 매출 입력 탭에서 업로드하면 자동 반영됩니다. 여기서는 지출내역서·중국인보이스 추가 원가를 입력합니다.</span>
+  </div>
+  <div class="note am" style="margin-top:10px">
+    <span>📎</span>
+    <span><b>파일 원본 보관</b> — 업로드한 파일은 <a href="https://www.notion.so/047843c7d461464babb69c13a98a4dc2" target="_blank" rel="noopener" style="color:var(--ac);font-weight:600">📎 노션 파일 DB</a>에 자동 생성된 행에 직접 끌어다 놓으세요. (이력 추적 + 다운로드)</span>
   </div>
 
   <div class="dz-row">
@@ -612,8 +620,8 @@ var NOTION_BILLING_DB = '6373a854b0914107b66969c34f6f7ea4';
 var NOTION_SALES_DB   = 'c0c3fb585321466192a7f24ec3262aba';
 var NOTION_SAMPLE_DB  = 'd0d0aa39950c4c1a951d2e91f61de267';
 var NOTION_COGS_DB    = '9b992d33c1ee453f98432e6ed9e27831';
-// [신규] 업로드 파일 보관 DB — 사용자가 만든 후 ID 입력
-var NOTION_FILES_DB   = ''; // ← 여기에 새로 만든 파일DB의 ID를 넣어주세요
+// [신규] 업로드 파일 보관 DB
+var NOTION_FILES_DB   = '047843c7d461464babb69c13a98a4dc2';
 
 var S = {
   sales:null, sample:null, ek:null, exp:null, cn:null, cnList:[],
@@ -637,78 +645,47 @@ var FILE_TYPE_LABEL = {
 };
 
 // 파일을 노션에 업로드 → 파일 DB에 새 행 생성하면서 attach
+// [수정] 파일 메타데이터만 노션에 기록.
+// 실제 파일 첨부는 사용자가 노션 DB에서 직접 드래그&드롭으로 추가.
+// 이렇게 하면 워커 프록시 multipart 지원 없이도 작동하고, 노션에 영구 보관됨.
 async function uploadFileToNotion(file, type, period, extraInfo){
   if(!NOTION_FILES_DB){
     console.warn('NOTION_FILES_DB가 설정되지 않음 — 파일 보관 건너뜀');
     return null;
   }
   try{
-    // Step 1: file_uploads 객체 생성 (id, upload_url 받기)
-    var step1 = await fetch(NOTION_PROXY+'/file_uploads', {
-      method:'POST',
-      headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'},
-      body: JSON.stringify({
-        filename: file.name,
-        content_type: file.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-      })
-    });
-    if(!step1.ok){
-      var e1 = await step1.text();
-      console.warn('Step1 실패:', step1.status, e1);
-      return null;
-    }
-    var d1 = await step1.json();
-    var uploadId = d1.id;
-
-    // Step 2: 실제 파일 전송 (multipart) — 워커 프록시의 별도 엔드포인트 사용
-    var form = new FormData();
-    form.append('file', file, file.name);
-    var step2 = await fetch(NOTION_PROXY+'/file_uploads/'+uploadId+'/send', {
-      method:'POST',
-      headers:{'Notion-Version':'2022-06-28'},
-      body: form
-    });
-    if(!step2.ok){
-      var e2 = await step2.text();
-      console.warn('Step2 실패:', step2.status, e2);
-      return null;
-    }
-
-    // Step 3: 파일 DB에 새 행 만들면서 file_upload attach
+    // 노션 파일 DB에 메타데이터 행 생성 (파일 속성은 비워두고 사용자가 직접 첨부)
     var props = {
       '이름':       {title:[{text:{content:file.name}}]},
       '기간':       {rich_text:[{text:{content:period||''}}]},
       '타입':       {select:{name: FILE_TYPE_LABEL[type] || type}},
-      '업로드일시': {rich_text:[{text:{content: new Date().toISOString()}}]},
-      '파일':       {files:[{
-        name: file.name,
-        type: 'file_upload',
-        file_upload: { id: uploadId }
-      }]}
+      '업로드일시': {rich_text:[{text:{content: new Date().toISOString()}}]}
     };
     if(extraInfo && typeof extraInfo === 'string'){
       props['비고'] = {rich_text:[{text:{content: extraInfo}}]};
     }
-    var step3 = await fetch(NOTION_PROXY+'/pages', {
+    var resp = await fetch(NOTION_PROXY+'/pages', {
       method:'POST',
       headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'},
       body: JSON.stringify({parent:{database_id:NOTION_FILES_DB}, properties: props})
     });
-    if(!step3.ok){
-      var e3 = await step3.text();
-      console.warn('Step3 실패:', step3.status, e3);
+    if(!resp.ok){
+      var e = await resp.text();
+      console.warn('파일 메타 저장 실패:', resp.status, e);
       return null;
     }
-    var d3 = await step3.json();
+    var d = await resp.json();
     return {
-      pageId: d3.id,
+      pageId: d.id,
+      pageUrl: d.url || ('https://www.notion.so/' + (d.id||'').replace(/-/g,'')),
       name: file.name,
       type: type,
       period: period,
-      uploadedAt: new Date().toISOString()
+      uploadedAt: new Date().toISOString(),
+      attached: false  // 첨부 안 됨 (사용자가 노션에서 직접 첨부)
     };
   }catch(err){
-    console.warn('파일 업로드 실패:', err.message);
+    console.warn('파일 메타 저장 예외:', err.message);
     return null;
   }
 }
@@ -742,12 +719,16 @@ async function loadFilesFromNotion(period){
         else if(fileObj.type==='file_upload') url = ''; // attached 후엔 file 타입으로 변환됨
       }
       var uploadedAt = pr['업로드일시']&&pr['업로드일시'].rich_text&&pr['업로드일시'].rich_text[0] ? pr['업로드일시'].rich_text[0].plain_text : (p.created_time||'');
+      // 노션 페이지 URL (파일 첨부가 없을 때 페이지로 이동해서 직접 확인할 수 있도록)
+      var pageUrl = p.url || ('https://www.notion.so/' + (p.id||'').replace(/-/g,''));
       return {
         pageId: p.id,
+        pageUrl: pageUrl,
         name: name,
         type: typeCode,
         typeLabel: typeLabel,
         url: url,
+        attached: !!url, // 파일 첨부 여부
         period: period,
         uploadedAt: uploadedAt
       };
@@ -788,18 +769,37 @@ function renderFileList(period){
       return;
     }
     el.style.display = 'block';
+    // 시간 역순 (최신 우선)으로 정렬
+    byType.sort(function(a,b){ return (b.uploadedAt||'').localeCompare(a.uploadedAt||''); });
     var rows = byType.map(function(f){
       var date = f.uploadedAt ? f.uploadedAt.slice(0,10) : '';
-      var dl = f.url ?
-        '<a href="'+f.url+'" target="_blank" rel="noopener" download="'+f.name+'" style="color:var(--ac);text-decoration:none;font-size:11px" title="'+f.name+'">📄 '+f.name+'</a>' :
-        '<span style="color:var(--mu);font-size:11px">📄 '+f.name+' (URL 없음)</span>';
-      return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 8px;background:#fff;border:1px solid var(--bd);border-radius:6px;margin-bottom:4px">'+
-             '<div style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+dl+'</div>'+
-             '<div style="font-size:10px;color:var(--hi)">'+date+'</div>'+
+      var time = f.uploadedAt && f.uploadedAt.length>=16 ? f.uploadedAt.slice(11,16) : '';
+      var when = date + (time ? ' '+time : '');
+      // 첨부된 파일: 다운로드 링크 / 미첨부: 노션 페이지로 이동 (새 탭)
+      var link;
+      if(f.attached && f.url){
+        // 노션이 attach 후 발급한 영구 다운로드 URL — 1시간 후 만료되므로 매번 새로 가져옴
+        link = '<a href="'+f.url+'" target="_blank" rel="noopener" download="'+f.name+'" '+
+               'style="color:var(--ac);text-decoration:none;font-size:12px;font-weight:500" '+
+               'title="'+f.name+' 다운로드">📄 '+f.name+'</a>';
+      } else {
+        // 첨부 미완료 — 노션 페이지로 이동해서 직접 첨부하도록 안내
+        link = '<a href="'+f.pageUrl+'" target="_blank" rel="noopener" '+
+               'style="color:var(--mu);text-decoration:none;font-size:12px" '+
+               'title="노션에서 파일 첨부하기">⏳ '+f.name+' <span style="color:var(--hi);font-size:10px">(노션에서 첨부 필요 ↗)</span></a>';
+      }
+      return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 10px;background:#fff;border:1px solid var(--bd);border-radius:6px;margin-bottom:4px">'+
+             '<div style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+link+'</div>'+
+             '<div style="font-size:10px;color:var(--hi);white-space:nowrap">'+when+'</div>'+
              '<button onclick="event.stopPropagation();removeUploadedFile(\''+f.pageId+'\',\''+period+'\')" style="background:none;border:none;color:var(--rd);cursor:pointer;font-size:14px;padding:0 2px" title="목록에서 제거">×</button>'+
              '</div>';
     }).join('');
-    el.innerHTML = '<div style="font-size:10px;color:var(--mu);font-weight:600;margin-bottom:4px">📎 등록된 파일 ('+byType.length+')</div>'+rows;
+    var attachedCount = byType.filter(function(f){return f.attached;}).length;
+    var headerInfo = byType.length+'개';
+    if(attachedCount < byType.length){
+      headerInfo += ' (첨부완료 '+attachedCount+' / 미첨부 '+(byType.length-attachedCount)+')';
+    }
+    el.innerHTML = '<div style="font-size:10px;color:var(--mu);font-weight:600;margin-bottom:4px">📎 등록된 파일 '+headerInfo+'</div>'+rows;
   });
 }
 
@@ -1126,7 +1126,7 @@ function rf(file,type){
         // [수정] 중국 인보이스도 매입원가 DB에 저장
         if(_p) syncCogsToNotion(_p);
       }
-      // [신규] 파일 자체를 노션 파일DB에 보관 (백그라운드)
+      // [신규] 노션 파일 DB에 메타데이터 행 자동 생성 (사용자가 노션에서 파일 첨부)
       if(_p && NOTION_FILES_DB){
         var extra = '';
         if(type==='cn' && parsed) extra = 'USD '+ (parsed.usd||0).toFixed(0) + (parsed.invDate?' / '+parsed.invDate:'');
@@ -1134,11 +1134,10 @@ function rf(file,type){
           if(meta){
             if(!S.files[_p]) S.files[_p] = [];
             S.files[_p].unshift(meta);
-            // url은 attach 직후 응답에는 없을 수 있으므로 다시 한번 로드
-            loadFilesFromNotion(_p).then(function(){ renderFileList(_p); });
-            toast('📎 파일 노션 보관 완료: '+file.name,'ok');
+            renderFileList(_p);
+            toast('📎 파일 행 등록 완료 — 노션에서 파일을 첨부하세요','ok');
           } else {
-            toast('⚠️ 파일 보관 실패: '+file.name+' (계산은 정상)','err');
+            toast('⚠️ 파일 행 등록 실패: '+file.name+' (손익 계산은 정상)','err');
           }
         });
       }
