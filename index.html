@@ -866,21 +866,113 @@ function renderFileList(period){
 }
 
 async function removeUploadedFile(pageId, period){
-  if(!confirm('이 파일을 삭제할까요?\n(R2 원본 + 노션 행 모두 삭제됩니다)')) return;
-  // 먼저 메모리에서 r2key 찾기
+  if(!confirm('이 파일을 삭제할까요?\n(파일 원본 + 분석 데이터 모두 삭제됩니다)')) return;
+  // 먼저 메모리에서 r2key/type/name 찾기
   var item = null;
   if(S.files[period]) item = S.files[period].find(function(f){return f.pageId===pageId;});
-  // 노션 행 archive
+  var fname = item ? item.name : '';
+  var ftype = item ? item.type : '';
+
+  // 노션 파일 DB 행 archive
   var ok = await deleteFileMeta(pageId);
-  // R2 파일 삭제 (있는 경우)
+  // R2 파일 삭제
   if(item && item.r2key){ deleteFileFromR2(item.r2key); }
-  if(ok){
-    if(S.files[period]) S.files[period] = S.files[period].filter(function(f){return f.pageId !== pageId;});
-    renderFileList(period);
-    toast('파일 삭제됨','ok');
-  } else {
-    toast('삭제 실패','err');
+  if(!ok){ toast('삭제 실패','err'); return; }
+
+  // 파일 목록에서 제거
+  if(S.files[period]) S.files[period] = S.files[period].filter(function(f){return f.pageId !== pageId;});
+
+  // ── [A안] 해당 파일의 분석 데이터도 메모리에서 제거 + 노션 재동기화 ──
+  // 현재 기간이 아니면 분석 데이터 정리는 스킵 (메모리에 다른 기간 데이터 없음)
+  var curPeriod = document.getElementById('g-period').value;
+  if(fname && period === curPeriod){
+    var changed = false;
+    if(ftype==='sales' && S.sales){
+      S.sales = S.sales.filter(function(x){ return x._srcFile !== fname; });
+      // 자동 분리된 개발비 중 같은 파일에서 온 것도 제거
+      if(S.sample) S.sample = S.sample.filter(function(s){ return !(s._fromSales && s._srcFile === fname); });
+      if(!S.sales.length){
+        S.sales = null;
+        resetDz('sales');
+      } else {
+        // 표시 갱신
+        var n = countDistinct(S.sales);
+        markDz('dz-sales','i-sales','s-sales','['+n+'개 파일]', S.sales.length+'건');
+      }
+      if(S.sample && !S.sample.length) S.sample = null;
+      changed = true;
+      renderSales(); renderSample();
+      syncSalesToNotion(period);
+      syncSampleToNotion(period);
+    } else if(ftype==='sample' && S.sample){
+      // 사용자 업로드분만 제거 (자동분리 개발비는 보존)
+      S.sample = S.sample.filter(function(s){ return s._fromSales || s._srcFile !== fname; });
+      var userSmp = S.sample.filter(function(s){ return !s._fromSales; });
+      if(!userSmp.length && S.sample.filter(function(s){return s._fromSales;}).length===0){
+        S.sample = null;
+        resetDz('sample');
+      } else if(!userSmp.length){
+        // 자동분리분만 남음 → dz 리셋 (사용자가 직접 올린 파일 없음)
+        resetDz('sample');
+      } else {
+        var n2 = countDistinct(userSmp);
+        markDz('dz-sample','i-sample','s-sample','['+n2+'개 파일]', userSmp.length+'건');
+      }
+      changed = true;
+      renderSample();
+      syncSampleToNotion(period);
+    } else if(ftype==='exp' && S.exp){
+      S.exp = S.exp.filter(function(x){ return x._srcFile !== fname; });
+      if(!S.exp.length){
+        S.exp = null;
+        resetDz('exp');
+      } else {
+        var n3 = countDistinct(S.exp);
+        markDz('dz-exp','i-exp','s-exp','['+n3+'개 파일]', S.exp.length+'건');
+      }
+      changed = true;
+      renderPurchase();
+      syncCogsToNotion(period);
+    } else if(ftype==='cn' && S.cnList){
+      S.cnList = S.cnList.filter(function(x){ return x.fname !== fname; });
+      if(!S.cnList.length){
+        S.cn = null;
+        resetDz('cn');
+      } else {
+        var totalUSD = S.cnList.reduce(function(s,i){return s+i.usd;},0);
+        markDz('dz-cn','i-cn','s-cn',S.cnList.length+'개', 'USD '+totalUSD.toFixed(0));
+      }
+      changed = true;
+      renderPurchase();
+      syncCogsToNotion(period);
+    }
+    if(changed) calcPnL();
   }
+
+  renderFileList(period);
+  toast('파일 및 데이터 삭제됨','ok');
+}
+
+// dz UI를 빈 상태로 리셋 (czd의 UI 부분만)
+function resetDz(type){
+  var m={
+    'sales': ['dz-sales','i-sales','s-sales','fi-sales'],
+    'sample':['dz-sample','i-sample','s-sample','fi-sample'],
+    'exp':   ['dz-exp','i-exp','s-exp','fi-exp'],
+    'cn':    ['dz-cn','i-cn','s-cn','fi-cn']
+  };
+  var ids=m[type]; if(!ids) return;
+  var dz=document.getElementById(ids[0]); if(dz) dz.classList.remove('ok');
+  var ic=document.getElementById(ids[1]); if(ic) ic.textContent='📤';
+  var st=document.getElementById(ids[2]); if(st) st.textContent='';
+  var fi=document.getElementById(ids[3]); if(fi) fi.value='';
+}
+
+// 배열에서 _srcFile 기준 unique 파일 개수
+function countDistinct(arr){
+  var d={};
+  arr.forEach(function(x){ if(x._srcFile) d[x._srcFile]=true; });
+  return Object.keys(d).length;
 }
 
 // ─────────────────────────────────────────
@@ -2350,7 +2442,7 @@ function doDownloadHtml(){
 //  Notion 동기화/로드 — Sales / Sample / Cogs
 // ─────────────────────────────────────────
 async function syncSalesToNotion(period){
-  if(!S.sales||!S.sales.length) return;
+  if(!period) return;
   var status = document.getElementById('notion-sync-status');
   if(status) status.textContent='🔄 납품 데이터 저장 중...';
   try{
@@ -2361,27 +2453,31 @@ async function syncSalesToNotion(period){
         await fetch(NOTION_PROXY+'/pages/'+qD.results[i].id,{method:'PATCH', headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'}, body:JSON.stringify({archived:true})});
       }
     }
-    for(var i=0;i<S.sales.length;i++){
-      var it=S.sales[i];
-      await fetch(NOTION_PROXY+'/pages',{method:'POST', headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'}, body:JSON.stringify({parent:{database_id:NOTION_SALES_DB}, properties:{
-        '항목명': {title:[{text:{content:it.prod||''}}]},
-        '기간':   {rich_text:[{text:{content:period}}]},
-        '거래처': {rich_text:[{text:{content:it.cust||''}}]},
-        '품목명': {rich_text:[{text:{content:it.prod||''}}]},
-        '품목코드':{rich_text:[{text:{content:it.pcode||''}}]},
-        '날짜':   {rich_text:[{text:{content:String(it.date||'')}}]},
-        '수량':   {number:Math.round(it.qty||0)},
-        '출고단가':{number:Math.round(it.price||0)},
-        '공급가액':{number:Math.round(it.amount||0)},
-        '적요':   {rich_text:[{text:{content:it.memo||''}}]}
-      }})});
+    if(S.sales && S.sales.length){
+      for(var i=0;i<S.sales.length;i++){
+        var it=S.sales[i];
+        await fetch(NOTION_PROXY+'/pages',{method:'POST', headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'}, body:JSON.stringify({parent:{database_id:NOTION_SALES_DB}, properties:{
+          '항목명': {title:[{text:{content:it.prod||''}}]},
+          '기간':   {rich_text:[{text:{content:period}}]},
+          '거래처': {rich_text:[{text:{content:it.cust||''}}]},
+          '품목명': {rich_text:[{text:{content:it.prod||''}}]},
+          '품목코드':{rich_text:[{text:{content:it.pcode||''}}]},
+          '날짜':   {rich_text:[{text:{content:String(it.date||'')}}]},
+          '수량':   {number:Math.round(it.qty||0)},
+          '출고단가':{number:Math.round(it.price||0)},
+          '공급가액':{number:Math.round(it.amount||0)},
+          '적요':   {rich_text:[{text:{content:it.memo||''}}]}
+        }})});
+      }
+      if(status) status.textContent='✅ 납품 Notion 저장 완료 ('+S.sales.length+'건)';
+    } else {
+      if(status) status.textContent='✅ 납품 Notion 정리 완료 (0건)';
     }
-    if(status) status.textContent='✅ 납품 Notion 저장 완료 ('+S.sales.length+'건)';
   }catch(e){ console.warn('납품 저장 실패:', e.message); }
 }
 
 async function syncSampleToNotion(period){
-  if(!S.sample||!S.sample.length) return;
+  if(!period) return;
   var status = document.getElementById('notion-sync-status');
   if(status) status.textContent='🔄 샘플·개발비 저장 중...';
   try{
@@ -2392,22 +2488,26 @@ async function syncSampleToNotion(period){
         await fetch(NOTION_PROXY+'/pages/'+qD.results[i].id,{method:'PATCH', headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'}, body:JSON.stringify({archived:true})});
       }
     }
-    for(var i=0;i<S.sample.length;i++){
-      var it=S.sample[i];
-      await fetch(NOTION_PROXY+'/pages',{method:'POST', headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'}, body:JSON.stringify({parent:{database_id:NOTION_SAMPLE_DB}, properties:{
-        '항목명': {title:[{text:{content:it.prod||''}}]},
-        '기간':   {rich_text:[{text:{content:period}}]},
-        '거래처': {rich_text:[{text:{content:it.cust||''}}]},
-        '품목명': {rich_text:[{text:{content:it.prod||''}}]},
-        '품목코드':{rich_text:[{text:{content:it.pcode||''}}]},
-        '날짜':   {rich_text:[{text:{content:String(it.date||'')}}]},
-        '수량':   {number:Math.round(it.qty||0)},
-        '단가':   {number:Math.round(it.price||0)},
-        '공급가액':{number:Math.round(it.amount||0)},
-        '구분':   {rich_text:[{text:{content:it.isDev?'개발비':'샘플원가'}}]}
-      }})});
+    if(S.sample && S.sample.length){
+      for(var i=0;i<S.sample.length;i++){
+        var it=S.sample[i];
+        await fetch(NOTION_PROXY+'/pages',{method:'POST', headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'}, body:JSON.stringify({parent:{database_id:NOTION_SAMPLE_DB}, properties:{
+          '항목명': {title:[{text:{content:it.prod||''}}]},
+          '기간':   {rich_text:[{text:{content:period}}]},
+          '거래처': {rich_text:[{text:{content:it.cust||''}}]},
+          '품목명': {rich_text:[{text:{content:it.prod||''}}]},
+          '품목코드':{rich_text:[{text:{content:it.pcode||''}}]},
+          '날짜':   {rich_text:[{text:{content:String(it.date||'')}}]},
+          '수량':   {number:Math.round(it.qty||0)},
+          '단가':   {number:Math.round(it.price||0)},
+          '공급가액':{number:Math.round(it.amount||0)},
+          '구분':   {rich_text:[{text:{content:it.isDev?'개발비':'샘플원가'}}]}
+        }})});
+      }
+      if(status) status.textContent='✅ 샘플·개발비 Notion 저장 완료 ('+S.sample.length+'건)';
+    } else {
+      if(status) status.textContent='✅ 샘플·개발비 Notion 정리 완료 (0건)';
     }
-    if(status) status.textContent='✅ 샘플·개발비 Notion 저장 완료 ('+S.sample.length+'건)';
   }catch(e){ console.warn('샘플 저장 실패:', e.message); }
 }
 
