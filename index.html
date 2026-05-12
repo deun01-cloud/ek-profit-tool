@@ -127,9 +127,6 @@ tbody tr:hover td{background:#fafafa}
       <div class="brand-sub">이케이아이엔티</div>
     </div>
   </div>
-  <div style="display:flex;align-items:center;gap:6px">
-    <button class="btn" style="font-size:11px;padding:5px 10px;background:#eef2ff;color:#4f46e5;border:1px solid #4f46e5" onclick="reloadFromNotion()">🔄 Notion 새로고침</button>
-  </div>
   <div class="hdr-right">
     <input type="month" id="g-period" onchange="onPeriodChange()">
     <button class="btn btn-ac" onclick="savePeriod()">💾 지금 저장</button>
@@ -147,10 +144,6 @@ tbody tr:hover td{background:#fafafa}
 </div>
 
 <div class="pg on" id="pg-sales">
-  <div class="note am" style="margin-bottom:12px">
-    <span>📎</span>
-    <span><b>파일 자동 보관</b> — 엑셀을 업로드하면 손익 자동 계산 + 원본 파일이 <a href="https://www.notion.so/047843c7d461464babb69c13a98a4dc2" target="_blank" rel="noopener" style="color:var(--ac);font-weight:600">📎 노션 파일 DB</a>에 자동 첨부됩니다. (× 클릭 시 완전 삭제)</span>
-  </div>
   <div id="saved-summary-card" style="display:none;margin-bottom:14px">
     <div class="card" style="background:var(--acbg);border:1.5px solid #e0e7ff">
       <div class="card-h" style="background:transparent">
@@ -219,15 +212,6 @@ tbody tr:hover td{background:#fafafa}
 </div>
 
 <div class="pg" id="pg-purchase">
-  <div class="note am">
-    <span>💡</span>
-    <span><b>원가 기준</b> — 상품 공급가로 산정합니다. <b>샘플·개발비(견적서현황)</b>는 매출 입력 탭에서 업로드하면 자동 반영됩니다. 여기서는 지출내역서·중국인보이스 추가 원가를 입력합니다.</span>
-  </div>
-  <div class="note am" style="margin-top:10px">
-    <span>📎</span>
-    <span><b>파일 자동 보관</b> — 업로드한 파일은 원본이 <a href="https://www.notion.so/047843c7d461464babb69c13a98a4dc2" target="_blank" rel="noopener" style="color:var(--ac);font-weight:600">📎 노션 파일 DB</a>에 자동 첨부됩니다. (× 클릭 시 완전 삭제)</span>
-  </div>
-
   <div class="dz-row">
     <div class="dz" id="dz-exp" onclick="document.getElementById('fi-exp').click()" ondragover="dzo(event,'dz-exp')" ondragleave="dzl('dz-exp')" ondrop="dzd(event,'exp')">
       <button class="dz-x" onclick="event.stopPropagation();czd('exp')">×</button>
