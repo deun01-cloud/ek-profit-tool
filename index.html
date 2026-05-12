@@ -867,90 +867,72 @@ function renderFileList(period){
 
 async function removeUploadedFile(pageId, period){
   if(!confirm('이 파일을 삭제할까요?\n(파일 원본 + 분석 데이터 모두 삭제됩니다)')) return;
+  // 진행 중인 자동 동기화 취소 (race 방지)
+  if(typeof _autoSyncTimer !== 'undefined') clearTimeout(_autoSyncTimer);
+
   // 먼저 메모리에서 r2key/type/name 찾기
   var item = null;
   if(S.files[period]) item = S.files[period].find(function(f){return f.pageId===pageId;});
   var fname = item ? item.name : '';
   var ftype = item ? item.type : '';
+  console.log('[삭제 시작]', {fname, ftype, period, pageId});
 
   // 노션 파일 DB 행 archive
   var ok = await deleteFileMeta(pageId);
   // R2 파일 삭제
-  if(item && item.r2key){ deleteFileFromR2(item.r2key); }
+  if(item && item.r2key){ await deleteFileFromR2(item.r2key); }
   if(!ok){ toast('삭제 실패','err'); return; }
 
   // 파일 목록에서 제거
   if(S.files[period]) S.files[period] = S.files[period].filter(function(f){return f.pageId !== pageId;});
 
-  // ── [A안] 해당 파일의 분석 데이터도 메모리에서 제거 + 노션 재동기화 ──
-  // 현재 기간이 아니면 분석 데이터 정리는 스킵 (메모리에 다른 기간 데이터 없음)
+  // ── 해당 파일의 분석 데이터도 메모리에서 제거 + 노션 재동기화 ──
   var curPeriod = document.getElementById('g-period').value;
   if(fname && period === curPeriod){
-    var changed = false;
     if(ftype==='sales' && S.sales){
+      var beforeN = S.sales.length;
       S.sales = S.sales.filter(function(x){ return x._srcFile !== fname; });
-      // 자동 분리된 개발비 중 같은 파일에서 온 것도 제거
       if(S.sample) S.sample = S.sample.filter(function(s){ return !(s._fromSales && s._srcFile === fname); });
-      if(!S.sales.length){
-        S.sales = null;
-        resetDz('sales');
-      } else {
-        // 표시 갱신
-        var n = countDistinct(S.sales);
-        markDz('dz-sales','i-sales','s-sales','['+n+'개 파일]', S.sales.length+'건');
-      }
+      console.log('[매출] 메모리 정리:', beforeN, '→', S.sales.length);
+      if(!S.sales.length){ S.sales = null; resetDz('sales'); }
+      else { var n=countDistinct(S.sales); markDz('dz-sales','i-sales','s-sales','['+n+'개 파일]', S.sales.length+'건'); }
       if(S.sample && !S.sample.length) S.sample = null;
-      changed = true;
       renderSales(); renderSample();
-      syncSalesToNotion(period);
-      syncSampleToNotion(period);
+      console.log('[매출] 노션 재동기화 시작...');
+      await syncSalesToNotion(period);
+      await syncSampleToNotion(period);
+      console.log('[매출] 노션 재동기화 완료');
     } else if(ftype==='sample' && S.sample){
-      // 사용자 업로드분만 제거 (자동분리 개발비는 보존)
+      var beforeS = S.sample.length;
       S.sample = S.sample.filter(function(s){ return s._fromSales || s._srcFile !== fname; });
       var userSmp = S.sample.filter(function(s){ return !s._fromSales; });
-      if(!userSmp.length && S.sample.filter(function(s){return s._fromSales;}).length===0){
-        S.sample = null;
-        resetDz('sample');
-      } else if(!userSmp.length){
-        // 자동분리분만 남음 → dz 리셋 (사용자가 직접 올린 파일 없음)
-        resetDz('sample');
-      } else {
-        var n2 = countDistinct(userSmp);
-        markDz('dz-sample','i-sample','s-sample','['+n2+'개 파일]', userSmp.length+'건');
-      }
-      changed = true;
+      console.log('[샘플] 메모리 정리:', beforeS, '→', S.sample.length, '(사용자분', userSmp.length+')');
+      if(!S.sample.length){ S.sample = null; resetDz('sample'); }
+      else if(!userSmp.length){ resetDz('sample'); }
+      else { var n2=countDistinct(userSmp); markDz('dz-sample','i-sample','s-sample','['+n2+'개 파일]', userSmp.length+'건'); }
       renderSample();
-      syncSampleToNotion(period);
+      await syncSampleToNotion(period);
+      console.log('[샘플] 노션 재동기화 완료');
     } else if(ftype==='exp' && S.exp){
       S.exp = S.exp.filter(function(x){ return x._srcFile !== fname; });
-      if(!S.exp.length){
-        S.exp = null;
-        resetDz('exp');
-      } else {
-        var n3 = countDistinct(S.exp);
-        markDz('dz-exp','i-exp','s-exp','['+n3+'개 파일]', S.exp.length+'건');
-      }
-      changed = true;
+      if(!S.exp.length){ S.exp = null; resetDz('exp'); }
+      else { var n3=countDistinct(S.exp); markDz('dz-exp','i-exp','s-exp','['+n3+'개 파일]', S.exp.length+'건'); }
       renderPurchase();
-      syncCogsToNotion(period);
+      await syncCogsToNotion(period);
+      console.log('[지출] 노션 재동기화 완료');
     } else if(ftype==='cn' && S.cnList){
       S.cnList = S.cnList.filter(function(x){ return x.fname !== fname; });
-      if(!S.cnList.length){
-        S.cn = null;
-        resetDz('cn');
-      } else {
-        var totalUSD = S.cnList.reduce(function(s,i){return s+i.usd;},0);
-        markDz('dz-cn','i-cn','s-cn',S.cnList.length+'개', 'USD '+totalUSD.toFixed(0));
-      }
-      changed = true;
+      if(!S.cnList.length){ S.cn = null; resetDz('cn'); }
+      else { var totalUSD = S.cnList.reduce(function(s,i){return s+i.usd;},0); markDz('dz-cn','i-cn','s-cn',S.cnList.length+'개', 'USD '+totalUSD.toFixed(0)); }
       renderPurchase();
-      syncCogsToNotion(period);
+      await syncCogsToNotion(period);
+      console.log('[CN] 노션 재동기화 완료');
     }
-    if(changed) calcPnL();
+    calcPnL();
   }
 
   renderFileList(period);
-  toast('파일 및 데이터 삭제됨','ok');
+  toast('파일 및 데이터 삭제 완료','ok');
 }
 
 // dz UI를 빈 상태로 리셋 (czd의 UI 부분만)
@@ -1996,19 +1978,23 @@ function calcPnL(){
   document.getElementById('tb-pnl-stmt').innerHTML=stHtml;
 }
 
-function deletePeriodData(){
+async function deletePeriodData(){
   var period = document.getElementById('g-period').value;
   if(!period){ toast('기간을 선택해주세요','err'); return; }
   var db = getRecordsDB();
   var keys = Object.keys(db);
   var hasSaved = !!db[period];
   var hasLive = !!(S.sales||S.sample||S.exp||(S.cnList&&S.cnList.length));
-  var msg = '['+period+'] 데이터를 삭제할까요?\n저장된 기간: '+(keys.length?keys.join(', '):'없음')+'\n매칭: '+(hasSaved?'있음':'없음')+' / 현재 파일: '+(hasLive?'있음':'없음');
+  var msg = '['+period+'] 데이터를 완전히 삭제할까요?\n\n• 메모리\n• 노션 매출/샘플/매입 DB\n• 노션 손익 스냅샷\n\n파일 원본(R2 + 노션 파일 DB)은 따로 × 버튼으로 지워주세요.';
   if(!confirm(msg)) return;
+
+  // 진행 중인 자동 동기화 취소
+  if(typeof _autoSyncTimer !== 'undefined') clearTimeout(_autoSyncTimer);
+
   if(hasSaved){
     delete db[period];
-    /* localStorage.setItem('ek_records', ...) 제거됨 - Notion이 단일 진실 원천 */
   }
+  // 메모리 비우기
   S.sales=null; S.sample=null; S.exp=null; S.cn=null; S.cnList=[]; S.manual=[];
   ['sales','sample','exp','cn'].forEach(function(t){
     var dz=document.getElementById('dz-'+t);
@@ -2025,7 +2011,38 @@ function deletePeriodData(){
   var sub=document.getElementById('p-rev-s'); if(sub) sub.textContent='';
   var bar=document.getElementById('p-bar'); if(bar) bar.style.width='0%';
   renderDash();
-  toast('🗑️ '+period+' 초기화 완료','ok');
+
+  // 노션 DB 정리 (sales / sample / cogs)
+  var status = document.getElementById('notion-sync-status');
+  if(status) status.textContent='🔄 Notion 데이터 정리 중...';
+  try{
+    await syncSalesToNotion(period);   // S.sales 비어있으니 노션 매출만 archive됨
+    await syncSampleToNotion(period);
+    await syncCogsToNotion(period);
+    // PNL 스냅샷도 archive
+    try{
+      var qPnl = await fetch(NOTION_PROXY+'/databases/'+NOTION_PNL_DB+'/query',{
+        method:'POST', headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'},
+        body:JSON.stringify({page_size:50, filter:{property:'이름', title:{equals:period}}})
+      });
+      if(qPnl.ok){
+        var dPnl = await qPnl.json();
+        for(var i=0;i<(dPnl.results||[]).length;i++){
+          if(!dPnl.results[i].archived){
+            await fetch(NOTION_PROXY+'/pages/'+dPnl.results[i].id,{
+              method:'PATCH', headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'},
+              body:JSON.stringify({archived:true})
+            });
+          }
+        }
+      }
+    }catch(ep){ console.warn('PNL archive 실패:', ep.message); }
+    if(status) status.textContent='✅ '+period+' 완전 초기화 완료';
+  }catch(e){
+    console.warn('Notion 초기화 중 오류:', e.message);
+    if(status) status.textContent='⚠️ Notion 정리 중 일부 실패: '+e.message;
+  }
+  toast('🗑️ '+period+' 완전 초기화 완료','ok');
 }
 
 function copyPnL(){
