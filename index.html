@@ -1180,7 +1180,26 @@ function rf(file,type){
     try{
       var wb=XLSX.read(e.target.result,{type:'array'});
       var _p=document.getElementById('g-period').value;
-      if(type==='sales') {S.sales =parseSales(wb); markDz('dz-sales','i-sales','s-sales',file.name,S.sales.length+'건'); renderSales(); calcPnL(); autoSyncNotion(); if(_p) syncSalesToNotion(_p);}
+      if(type==='sales') {
+        S.sales =parseSales(wb);
+        // ERP 명세서에 적요="개발비" 항목이 섞여 있으면 자동 분리 → S.sample에 합치기
+        var devs = S.sales._devItems || [];
+        if(devs.length){
+          if(!S.sample) S.sample=[];
+          // 기존 S.sample에서 같은 날짜+품목코드의 ERP 자동 분리 개발비는 먼저 제거 (중복 방지)
+          S.sample = S.sample.filter(function(s){ return !s._fromSales; });
+          devs.forEach(function(d){ d._fromSales=true; S.sample.push(d); });
+          renderSample();
+        }
+        var totalRow = S.sales._totalRow;
+        var statMsg = S.sales.length+'건';
+        if(devs.length) statMsg += ' + 개발비 '+devs.length+'건';
+        if(totalRow && totalRow.total) statMsg += ' · 부가세포함 '+totalRow.total.toLocaleString()+'원';
+        markDz('dz-sales','i-sales','s-sales',file.name,statMsg);
+        renderSales(); calcPnL(); autoSyncNotion();
+        if(_p) syncSalesToNotion(_p);
+        if(devs.length && _p) syncSampleToNotion(_p);
+      }
       if(type==='sample'){S.sample=parseSample(wb);markDz('dz-sample','i-sample','s-sample',file.name,S.sample.length+'건'); renderSample(); calcPnL(); autoSyncNotion(); if(_p) syncSampleToNotion(_p);}
       if(type==='exp')   {S.exp   =parseExp(wb);   markDz('dz-exp','i-exp','s-exp',file.name,S.exp.length+'건'); renderPurchase(); calcPnL(); autoSyncNotion(); if(_p) syncCogsToNotion(_p);}
       if(type==='cn'){
@@ -1265,16 +1284,42 @@ function parseSales(wb){
   var cCode=cidx(hdr,['품목코드','상품코드','코드']);
   var cQty =cidx(hdr,['수량']);
   var cPrc =cidx(hdr,['출고단가','단가']);
+  var cAmt =cidx(hdr,['공급가액','공급가']);
+  var cVat =cidx(hdr,['부가세']);
+  var cTot =cidx(hdr,['합계']);
   var cMemo=cidx(hdr,['적요','비고']);
   if(cQty<0||cPrc<0) throw new Error('매출자료: 수량/출고단가 컬럼을 찾을 수 없습니다');
   if(cDate<0) cDate=0;
-  var items=[];
+  var items=[];      // 일반 납품
+  var devItems=[];   // 적요="개발비" 항목 (매출에서 제외, 샘플/개발비로 분리)
+  var totalRow=null; // ERP 정산합계 행 (부가세 포함 최종 금액)
   for(var i=h+1;i<rows.length;i++){
-    var r=rows[i]; if(!r[cDate]||skip(r[cDate])) continue;
+    var r=rows[i]; if(!r[cDate]) continue;
+    // ERP 합계 행 감지: "정산합계" 또는 "합계" 시작
+    var firstCol=String(r[cDate]||'');
+    if(/정산합계|^합계/.test(firstCol)){
+      totalRow={
+        amount: cAmt>=0?parseFloat(r[cAmt])||0:0,
+        vat:    cVat>=0?parseFloat(r[cVat])||0:0,
+        total:  cTot>=0?parseFloat(r[cTot])||0:0
+      };
+      continue;
+    }
+    if(skip(firstCol)) continue;
     var qty=parseFloat(r[cQty]), price=parseFloat(r[cPrc]);
     if(isNaN(qty)||isNaN(price)||qty<=0) continue;
-    items.push({date:String(r[cDate]), cust:String(cCust>=0?r[cCust]||'':''), prod:String(cProd>=0?r[cProd]||'':''), pcode:String(cCode>=0?r[cCode]||'':''), qty:qty, price:price, amount:qty*price, memo:String(cMemo>=0?r[cMemo]||'':'')});
+    var memo=String(cMemo>=0?r[cMemo]||'':'');
+    var rec={date:String(r[cDate]), cust:String(cCust>=0?r[cCust]||'':''), prod:String(cProd>=0?r[cProd]||'':''), pcode:String(cCode>=0?r[cCode]||'':''), qty:qty, price:price, amount:qty*price, memo:memo};
+    if(memo.indexOf('개발비')>=0){
+      // 개발비는 매출에서 제외 → 샘플/개발비로 분리
+      devItems.push({date:rec.date, prod:rec.prod, pcode:rec.pcode, qty:qty, price:price, amount:qty*price, cust:rec.cust, isDev:true, type:'개발비'});
+    } else {
+      items.push(rec);
+    }
   }
+  // 부가 정보를 배열 속성으로 첨부 (호출부에서 사용)
+  items._devItems=devItems;
+  items._totalRow=totalRow;
   return items;
 }
 
@@ -1415,7 +1460,14 @@ function renderSales(){
     var d=byC[c];
     html+='<tr><td>'+badge(c)+'</td><td class="r">'+Math.round(d.qty)+'</td><td class="r">'+won(d.amt)+'</td><td class="r">'+(total>0?Math.round(d.amt/total*100):0)+'%</td></tr>';
   });
-  html+='<tr class="tr-tot"><td>합계</td><td class="r">'+Math.round(items.reduce(function(s,i){return s+i.qty},0))+'</td><td class="r">'+won(total)+'</td><td class="r">100%</td></tr></tbody></table>';
+  html+='<tr class="tr-tot"><td>합계</td><td class="r">'+Math.round(items.reduce(function(s,i){return s+i.qty},0))+'</td><td class="r">'+won(total)+'</td><td class="r">100%</td></tr>';
+  // ERP 명세서 부가세 포함 최종 합계
+  var tr = items._totalRow;
+  if(tr && tr.total){
+    var vat = tr.vat || Math.round(total*0.1);
+    html+='<tr style="background:#f5f3ff"><td colspan="2" style="color:var(--ac);font-weight:600">부가세 포함 최종 합계</td><td class="r" style="font-size:10px;color:var(--mu)">VAT '+won(vat)+'</td><td class="r" style="font-weight:700;color:var(--ac)">'+won(tr.total)+'</td></tr>';
+  }
+  html+='</tbody></table>';
   document.getElementById('sales-summary').innerHTML=html;
 
   document.getElementById('sales-detail-card').style.display='block';
