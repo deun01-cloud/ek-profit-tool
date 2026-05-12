@@ -128,8 +128,6 @@ tbody tr:hover td{background:#fafafa}
     </div>
   </div>
   <div style="display:flex;align-items:center;gap:6px">
-    <button class="btn" style="font-size:11px;padding:5px 10px;background:#f0fdf4;color:#16a34a;border:1px solid #16a34a" onclick="injectTestData()">🧪 테스트</button>
-    <button class="btn" style="font-size:11px;padding:5px 10px" onclick="clearTestData()">🧹 초기화</button>
     <button class="btn" style="font-size:11px;padding:5px 10px;background:#eef2ff;color:#4f46e5;border:1px solid #4f46e5" onclick="reloadFromNotion()">🔄 Notion 새로고침</button>
   </div>
   <div class="hdr-right">
@@ -151,7 +149,7 @@ tbody tr:hover td{background:#fafafa}
 <div class="pg on" id="pg-sales">
   <div class="note am" style="margin-bottom:12px">
     <span>📎</span>
-    <span><b>파일 첨부 안내</b> — 엑셀을 업로드하면 손익은 자동 계산됩니다. 파일 원본 보관은 <a href="https://www.notion.so/047843c7d461464babb69c13a98a4dc2" target="_blank" rel="noopener" style="color:var(--ac);font-weight:600">📎 노션 파일 DB</a>에서 자동 생성된 행에 직접 끌어다 놓으세요.</span>
+    <span><b>파일 자동 보관</b> — 엑셀을 업로드하면 손익 자동 계산 + 원본 파일이 <a href="https://www.notion.so/047843c7d461464babb69c13a98a4dc2" target="_blank" rel="noopener" style="color:var(--ac);font-weight:600">📎 노션 파일 DB</a>에 자동 첨부됩니다. (× 클릭 시 완전 삭제)</span>
   </div>
   <div id="saved-summary-card" style="display:none;margin-bottom:14px">
     <div class="card" style="background:var(--acbg);border:1.5px solid #e0e7ff">
@@ -227,7 +225,7 @@ tbody tr:hover td{background:#fafafa}
   </div>
   <div class="note am" style="margin-top:10px">
     <span>📎</span>
-    <span><b>파일 원본 보관</b> — 업로드한 파일은 <a href="https://www.notion.so/047843c7d461464babb69c13a98a4dc2" target="_blank" rel="noopener" style="color:var(--ac);font-weight:600">📎 노션 파일 DB</a>에 자동 생성된 행에 직접 끌어다 놓으세요. (이력 추적 + 다운로드)</span>
+    <span><b>파일 자동 보관</b> — 업로드한 파일은 원본이 <a href="https://www.notion.so/047843c7d461464babb69c13a98a4dc2" target="_blank" rel="noopener" style="color:var(--ac);font-weight:600">📎 노션 파일 DB</a>에 자동 첨부됩니다. (× 클릭 시 완전 삭제)</span>
   </div>
 
   <div class="dz-row">
@@ -635,7 +633,7 @@ var _fixedSyncing = false;
 var _recordsLoaded = false; // Notion PNL DB가 한번이라도 로드됐는지
 
 // ─────────────────────────────────────────
-// [신규] 업로드 파일 보관 — Notion 파일 DB
+// [신규] 업로드 파일 보관 — R2 + Notion 파일 DB
 // ─────────────────────────────────────────
 var FILE_TYPE_LABEL = {
   'sales':  '납품매출',
@@ -644,26 +642,96 @@ var FILE_TYPE_LABEL = {
   'cn':     '중국인보이스'
 };
 
-// 파일을 노션에 업로드 → 파일 DB에 새 행 생성하면서 attach
-// [수정] 파일 메타데이터만 노션에 기록.
-// 실제 파일 첨부는 사용자가 노션 DB에서 직접 드래그&드롭으로 추가.
-// 이렇게 하면 워커 프록시 multipart 지원 없이도 작동하고, 노션에 영구 보관됨.
+// R2 public 도메인 (워커 EK_FILES 버킷의 Public Development URL)
+var R2_PUBLIC = 'https://pub-e54f6e37b612499fb17dc3c01db50a06.r2.dev';
+// R2 업로드/삭제용 워커 (notion-proxy는 R2 바인딩 없음 → ek-proxy 사용)
+var R2_PROXY  = 'https://ek-proxy.deun01.workers.dev';
+
+// File → R2 업로드. 성공 시 {key, publicUrl} 반환, 실패 시 null
+async function uploadFileToR2(file){
+  try{
+    // 작은 파일(<5MB)은 base64로, 큰 파일은 binary로 전송
+    var body, headers;
+    var isLarge = file.size > 5*1024*1024;
+    if(isLarge){
+      body = await file.arrayBuffer();
+      headers = {
+        'Content-Type': 'application/octet-stream',
+        'X-File-Name':  encodeURIComponent(file.name),
+        'X-File-Type':  file.type || 'application/octet-stream'
+      };
+    } else {
+      // base64로 변환 (CORS 안전)
+      var buf = await file.arrayBuffer();
+      var b64 = arrayBufferToBase64(buf);
+      body = b64;
+      headers = {
+        'Content-Type': 'text/plain',
+        'X-File-Name':  encodeURIComponent(file.name),
+        'X-File-Type':  file.type || 'application/octet-stream',
+        'X-Encoding':   'base64'
+      };
+    }
+    var resp = await fetch(R2_PROXY + '/r2/upload', {
+      method:'POST', headers:headers, body:body
+    });
+    if(!resp.ok){ console.warn('R2 업로드 실패:', resp.status); return null; }
+    var d = await resp.json();
+    if(!d.key) return null;
+    return { key: d.key, publicUrl: R2_PUBLIC + '/' + d.key };
+  }catch(e){
+    console.warn('R2 업로드 예외:', e.message); return null;
+  }
+}
+
+function arrayBufferToBase64(buf){
+  var bytes = new Uint8Array(buf), bin = '';
+  var CHUNK = 0x8000;
+  for(var i=0;i<bytes.length;i+=CHUNK){
+    bin += String.fromCharCode.apply(null, bytes.subarray(i, i+CHUNK));
+  }
+  return btoa(bin);
+}
+
+// R2에서 파일 삭제
+async function deleteFileFromR2(key){
+  if(!key) return false;
+  try{
+    var resp = await fetch(R2_PROXY + '/r2/file/' + encodeURIComponent(key), {
+      method:'DELETE'
+    });
+    return resp.ok;
+  }catch(e){ return false; }
+}
+
+// 파일을 R2에 업로드 + 노션 파일 DB에 새 행 생성 (external URL로 자동 첨부)
 async function uploadFileToNotion(file, type, period, extraInfo){
   if(!NOTION_FILES_DB){
     console.warn('NOTION_FILES_DB가 설정되지 않음 — 파일 보관 건너뜀');
     return null;
   }
   try{
-    // 노션 파일 DB에 메타데이터 행 생성 (파일 속성은 비워두고 사용자가 직접 첨부)
+    // 1) R2에 파일 업로드
+    var r2 = await uploadFileToR2(file);
+    if(!r2){
+      console.warn('R2 업로드 실패 — 메타만 저장');
+    }
+
+    // 2) 노션 파일 DB에 행 생성 (R2 URL을 external 파일로 첨부)
     var props = {
       '이름':       {title:[{text:{content:file.name}}]},
       '기간':       {rich_text:[{text:{content:period||''}}]},
       '타입':       {select:{name: FILE_TYPE_LABEL[type] || type}},
       '업로드일시': {rich_text:[{text:{content: new Date().toISOString()}}]}
     };
-    if(extraInfo && typeof extraInfo === 'string'){
-      props['비고'] = {rich_text:[{text:{content: extraInfo}}]};
+    if(r2 && r2.publicUrl){
+      props['파일'] = {files:[{name:file.name, external:{url:r2.publicUrl}}]};
     }
+    // R2 key를 노션에 함께 저장 (삭제 시 사용)
+    var memo = extraInfo || '';
+    if(r2 && r2.key){ memo = (memo ? memo + ' | ' : '') + 'r2key:' + r2.key; }
+    if(memo){ props['비고'] = {rich_text:[{text:{content:memo}}]}; }
+
     var resp = await fetch(NOTION_PROXY+'/pages', {
       method:'POST',
       headers:{'Content-Type':'application/json','Notion-Version':'2022-06-28'},
@@ -672,6 +740,8 @@ async function uploadFileToNotion(file, type, period, extraInfo){
     if(!resp.ok){
       var e = await resp.text();
       console.warn('파일 메타 저장 실패:', resp.status, e);
+      // 노션 저장 실패해도 R2는 남아있으니 청소
+      if(r2 && r2.key) deleteFileFromR2(r2.key);
       return null;
     }
     var d = await resp.json();
@@ -682,10 +752,12 @@ async function uploadFileToNotion(file, type, period, extraInfo){
       type: type,
       period: period,
       uploadedAt: new Date().toISOString(),
-      attached: false  // 첨부 안 됨 (사용자가 노션에서 직접 첨부)
+      url: r2 ? r2.publicUrl : '',
+      r2key: r2 ? r2.key : '',
+      attached: !!(r2 && r2.publicUrl)
     };
   }catch(err){
-    console.warn('파일 메타 저장 예외:', err.message);
+    console.warn('파일 업로드 예외:', err.message);
     return null;
   }
 }
@@ -719,6 +791,11 @@ async function loadFilesFromNotion(period){
         else if(fileObj.type==='file_upload') url = ''; // attached 후엔 file 타입으로 변환됨
       }
       var uploadedAt = pr['업로드일시']&&pr['업로드일시'].rich_text&&pr['업로드일시'].rich_text[0] ? pr['업로드일시'].rich_text[0].plain_text : (p.created_time||'');
+      // 비고에서 r2key 추출 (삭제 시 사용)
+      var memo = pr['비고']&&pr['비고'].rich_text&&pr['비고'].rich_text[0] ? pr['비고'].rich_text[0].plain_text : '';
+      var r2key = '';
+      var km = memo.match(/r2key:([^\s|]+)/);
+      if(km) r2key = km[1];
       // 노션 페이지 URL (파일 첨부가 없을 때 페이지로 이동해서 직접 확인할 수 있도록)
       var pageUrl = p.url || ('https://www.notion.so/' + (p.id||'').replace(/-/g,''));
       return {
@@ -728,7 +805,8 @@ async function loadFilesFromNotion(period){
         type: typeCode,
         typeLabel: typeLabel,
         url: url,
-        attached: !!url, // 파일 첨부 여부
+        r2key: r2key,
+        attached: !!url,
         period: period,
         uploadedAt: uploadedAt
       };
@@ -783,10 +861,10 @@ function renderFileList(period){
                'style="color:var(--ac);text-decoration:none;font-size:12px;font-weight:500" '+
                'title="'+f.name+' 다운로드">📄 '+f.name+'</a>';
       } else {
-        // 첨부 미완료 — 노션 페이지로 이동해서 직접 첨부하도록 안내
+        // 첨부 실패 — 노션 페이지로 이동해서 직접 첨부 가능
         link = '<a href="'+f.pageUrl+'" target="_blank" rel="noopener" '+
                'style="color:var(--mu);text-decoration:none;font-size:12px" '+
-               'title="노션에서 파일 첨부하기">⏳ '+f.name+' <span style="color:var(--hi);font-size:10px">(노션에서 첨부 필요 ↗)</span></a>';
+               'title="노션에서 파일 첨부하기">⚠️ '+f.name+' <span style="color:var(--hi);font-size:10px">(첨부 실패 — 수동 확인 ↗)</span></a>';
       }
       return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 10px;background:#fff;border:1px solid var(--bd);border-radius:6px;margin-bottom:4px">'+
              '<div style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+link+'</div>'+
@@ -804,14 +882,20 @@ function renderFileList(period){
 }
 
 async function removeUploadedFile(pageId, period){
-  if(!confirm('이 파일을 목록에서 제거할까요?\n(노션 첨부파일 자체는 정책상 보관됩니다)')) return;
+  if(!confirm('이 파일을 삭제할까요?\n(R2 원본 + 노션 행 모두 삭제됩니다)')) return;
+  // 먼저 메모리에서 r2key 찾기
+  var item = null;
+  if(S.files[period]) item = S.files[period].find(function(f){return f.pageId===pageId;});
+  // 노션 행 archive
   var ok = await deleteFileMeta(pageId);
+  // R2 파일 삭제 (있는 경우)
+  if(item && item.r2key){ deleteFileFromR2(item.r2key); }
   if(ok){
     if(S.files[period]) S.files[period] = S.files[period].filter(function(f){return f.pageId !== pageId;});
     renderFileList(period);
-    toast('파일 목록에서 제거됨','ok');
+    toast('파일 삭제됨','ok');
   } else {
-    toast('제거 실패','err');
+    toast('삭제 실패','err');
   }
 }
 
@@ -1135,9 +1219,13 @@ function rf(file,type){
             if(!S.files[_p]) S.files[_p] = [];
             S.files[_p].unshift(meta);
             renderFileList(_p);
-            toast('📎 파일 행 등록 완료 — 노션에서 파일을 첨부하세요','ok');
+            if(meta.attached){
+              toast('📎 파일 자동 보관 완료','ok');
+            } else {
+              toast('⚠️ R2 업로드 실패 — 노션 행만 생성됨','err');
+            }
           } else {
-            toast('⚠️ 파일 행 등록 실패: '+file.name+' (손익 계산은 정상)','err');
+            toast('⚠️ 파일 보관 실패: '+file.name+' (손익 계산은 정상)','err');
           }
         });
       }
@@ -1173,17 +1261,35 @@ function czd(type){
 
 function fhdr(rows){for(var i=0;i<rows.length;i++){if(String(rows[i][0]||'').includes('일자-No'))return i}return -1}
 function skip(v){var s=String(v||'');return['계','합계','이케이','오전','오후','출력'].some(function(k){return s.includes(k)})}
+// 헤더 행에서 컬럼명으로 인덱스 찾기 (부분일치). aliases 배열 중 먼저 매칭되는 것 반환. 못 찾으면 -1
+function cidx(hdr, aliases){
+  for(var i=0;i<hdr.length;i++){
+    var s=String(hdr[i]||'').replace(/\s+/g,'');
+    for(var j=0;j<aliases.length;j++){ if(s.indexOf(aliases[j])>=0) return i; }
+  }
+  return -1;
+}
 
 function parseSales(wb){
   var ws=wb.Sheets[wb.SheetNames[0]];
   var rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
   var h=fhdr(rows); if(h<0) throw new Error('매출자료: 헤더를 찾을 수 없습니다 (일자-No. 컬럼 필요)');
+  var hdr=rows[h];
+  var cDate=cidx(hdr,['일자-No','일자','날짜']);
+  var cCust=cidx(hdr,['거래처']);
+  var cProd=cidx(hdr,['품목명','품명']);
+  var cCode=cidx(hdr,['품목코드','상품코드','코드']);
+  var cQty =cidx(hdr,['수량']);
+  var cPrc =cidx(hdr,['출고단가','단가']);
+  var cMemo=cidx(hdr,['적요','비고']);
+  if(cQty<0||cPrc<0) throw new Error('매출자료: 수량/출고단가 컬럼을 찾을 수 없습니다');
+  if(cDate<0) cDate=0;
   var items=[];
   for(var i=h+1;i<rows.length;i++){
-    var r=rows[i]; if(!r[0]||skip(r[0])) continue;
-    var qty=parseFloat(r[5]), price=parseFloat(r[6]);
+    var r=rows[i]; if(!r[cDate]||skip(r[cDate])) continue;
+    var qty=parseFloat(r[cQty]), price=parseFloat(r[cPrc]);
     if(isNaN(qty)||isNaN(price)||qty<=0) continue;
-    items.push({date:String(r[0]), cust:String(r[1]||''), prod:String(r[2]||''), pcode:String(r[3]||''), qty:qty, price:price, amount:qty*price, memo:String(r[7]||'')});
+    items.push({date:String(r[cDate]), cust:String(cCust>=0?r[cCust]||'':''), prod:String(cProd>=0?r[cProd]||'':''), pcode:String(cCode>=0?r[cCode]||'':''), qty:qty, price:price, amount:qty*price, memo:String(cMemo>=0?r[cMemo]||'':'')});
   }
   return items;
 }
@@ -1192,13 +1298,24 @@ function parseSample(wb){
   var ws=wb.Sheets[wb.SheetNames[0]];
   var rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
   var h=fhdr(rows); if(h<0) throw new Error('샘플개발내역: 헤더를 찾을 수 없습니다 (일자-No. 컬럼 필요)');
+  var hdr=rows[h];
+  var cDate=cidx(hdr,['일자-No','일자','날짜']);
+  var cProd=cidx(hdr,['품목명','품명']);
+  var cCode=cidx(hdr,['품목코드','상품코드','코드']);
+  var cQty =cidx(hdr,['수량']);
+  var cPrc =cidx(hdr,['단가']);
+  var cAmt =cidx(hdr,['공급가액','공급가']);
+  var cCust=cidx(hdr,['거래처']);
+  var cMemo=cidx(hdr,['적요','비고']);
+  if(cAmt<0) throw new Error('샘플개발내역: 공급가액 컬럼을 찾을 수 없습니다');
+  if(cDate<0) cDate=0;
   var items=[];
   for(var i=h+1;i<rows.length;i++){
-    var r=rows[i]; if(!r[0]||skip(r[0])) continue;
-    var amt=parseFloat(r[6]);
+    var r=rows[i]; if(!r[cDate]||skip(r[cDate])) continue;
+    var amt=parseFloat(r[cAmt]);
     if(isNaN(amt)||amt<=0) continue;
-    var isDev=!!(r[8]&&String(r[8]).includes('개발비'));
-    items.push({date:String(r[0]), prod:String(r[1]||''), pcode:String(r[2]||''), qty:parseFloat(r[3])||1, price:parseFloat(r[5])||0, amount:amt, cust:String(r[7]||''), isDev:isDev, type:isDev?'개발비':'샘플원가'});
+    var isDev=!!(cMemo>=0&&r[cMemo]&&String(r[cMemo]).includes('개발비'));
+    items.push({date:String(r[cDate]), prod:String(cProd>=0?r[cProd]||'':''), pcode:String(cCode>=0?r[cCode]||'':''), qty:(cQty>=0?parseFloat(r[cQty])||1:1), price:(cPrc>=0?parseFloat(r[cPrc])||0:0), amount:amt, cust:String(cCust>=0?r[cCust]||'':''), isDev:isDev, type:isDev?'개발비':'샘플원가'});
   }
   return items;
 }
