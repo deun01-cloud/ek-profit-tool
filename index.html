@@ -163,7 +163,7 @@ tbody tr:hover td{background:#fafafa}
       <div class="dz-hint">col: <b>일자-No.</b> · <b>거래처명</b> · 품목명 · 품목코드 · 이미지 · <b>수량</b> · <b>출고단가</b> · 적요<br>※ 공급가액 = 수량 × 출고단가</div>
       <div class="dz-stat" id="s-sales"></div>
       <div id="files-sales" style="display:none;text-align:left;margin-top:8px"></div>
-      <input type="file" id="fi-sales" accept=".xlsx,.xls" onchange="lf(this,'sales')">
+      <input type="file" id="fi-sales" accept=".xlsx,.xls" multiple onchange="lfMulti(this,'sales')">
     </div>
     <div class="dz" id="dz-sample" onclick="document.getElementById('fi-sample').click()" ondragover="dzo(event,'dz-sample')" ondragleave="dzl('dz-sample')" ondrop="dzd(event,'sample')">
       <button class="dz-x" onclick="event.stopPropagation();czd('sample')">×</button>
@@ -173,7 +173,7 @@ tbody tr:hover td{background:#fafafa}
       <div class="dz-hint">col: <b>일자-No.</b> · 품목명 · 품목코드 · 수량 · 이미지 · 단가 · <b>공급가액</b> · <b>거래처명</b> · <b>적요</b><br>※ 적요에 "개발비" → 개발비 / 없으면 → 샘플 원가</div>
       <div class="dz-stat" id="s-sample"></div>
       <div id="files-sample" style="display:none;text-align:left;margin-top:8px"></div>
-      <input type="file" id="fi-sample" accept=".xlsx,.xls" onchange="lf(this,'sample')">
+      <input type="file" id="fi-sample" accept=".xlsx,.xls" multiple onchange="lfMulti(this,'sample')">
     </div>
   </div>
 
@@ -221,7 +221,7 @@ tbody tr:hover td{background:#fafafa}
       <div class="dz-hint">컬럼: 구분 · <b>거래처</b> · <b>금액</b> · 확인 · <b>부가세포함여부</b> (O면 ÷1.1 자동)</div>
       <div class="dz-stat" id="s-exp"></div>
       <div id="files-exp" style="display:none;text-align:left;margin-top:8px"></div>
-      <input type="file" id="fi-exp" accept=".xlsx,.xls" onchange="lf(this,'exp')">
+      <input type="file" id="fi-exp" accept=".xlsx,.xls" multiple onchange="lfMulti(this,'exp')">
     </div>
     <div class="dz" id="dz-cn" onclick="document.getElementById('fi-cn').click()" ondragover="dzo(event,'dz-cn')" ondragleave="dzl('dz-cn')" ondrop="dzd(event,'cn')">
       <button class="dz-x" onclick="event.stopPropagation();czd('cn')">×</button>
@@ -1020,8 +1020,15 @@ async function cleanupLegacyEkData(){
 //  Init — 페이지 로드 시 모든 Notion 데이터 자동 로드
 // ─────────────────────────────────────────
 (function(){
-  var d=new Date();
-  document.getElementById('g-period').value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+  // 마지막으로 보던 기간 복원 (없으면 현재월)
+  var savedPeriod = '';
+  try{ savedPeriod = localStorage.getItem('ek_lastPeriod') || ''; }catch(e){}
+  if(savedPeriod && /^\d{4}-\d{2}$/.test(savedPeriod)){
+    document.getElementById('g-period').value = savedPeriod;
+  } else {
+    var d=new Date();
+    document.getElementById('g-period').value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+  }
 
   // [수정] 고정비는 localStorage 사용 안 함 — Notion에서만 로드
   S.fixed = [];
@@ -1031,6 +1038,8 @@ async function cleanupLegacyEkData(){
   _fixedLoading = false;
 
   var initPeriod = document.getElementById('g-period').value;
+  // 다음 새로고침에서도 복원되도록 즉시 저장
+  try{ localStorage.setItem('ek_lastPeriod', initPeriod); }catch(e){}
   // [수정] 청구관리도 localStorage 사용 안 함 — Notion에서만 로드
   S.billing = [];
   renderBilling();
@@ -1163,15 +1172,13 @@ function dzd(e,type){
   document.getElementById(dzId).classList.remove('drag');
   var files=e.dataTransfer.files;
   if(!files||!files.length) return;
-  if(type==='cn'){ for(var i=0;i<files.length;i++) rf(files[i],'cn'); }
-  else { rf(files[0],type); }
+  for(var i=0;i<files.length;i++) rf(files[i],type);
 }
 
 function lf(inp,type){if(inp.files[0]) rf(inp.files[0],type)}
 function lfMulti(inp,type){
   if(!inp.files||!inp.files.length) return;
-  if(type==='cn'){ for(var i=0;i<inp.files.length;i++) rf(inp.files[i],'cn'); }
-  else { rf(inp.files[0],type); }
+  for(var i=0;i<inp.files.length;i++) rf(inp.files[i],type);
 }
 
 function rf(file,type){
@@ -1181,27 +1188,69 @@ function rf(file,type){
       var wb=XLSX.read(e.target.result,{type:'array'});
       var _p=document.getElementById('g-period').value;
       if(type==='sales') {
-        S.sales =parseSales(wb);
-        // ERP 명세서에 적요="개발비" 항목이 섞여 있으면 자동 분리 → S.sample에 합치기
-        var devs = S.sales._devItems || [];
-        if(devs.length){
-          if(!S.sample) S.sample=[];
-          // 기존 S.sample에서 같은 날짜+품목코드의 ERP 자동 분리 개발비는 먼저 제거 (중복 방지)
-          S.sample = S.sample.filter(function(s){ return !s._fromSales; });
-          devs.forEach(function(d){ d._fromSales=true; S.sample.push(d); });
-          renderSample();
+        var parsed = parseSales(wb);
+        // 파일별로 묶어 추적 (같은 파일명 재업로드 시 그 파일 분량만 갱신, 다른 파일은 유지)
+        parsed.forEach(function(it){ it._srcFile = file.name; });
+        var devs = parsed._devItems || [];
+        devs.forEach(function(d){ d._srcFile = file.name; });
+        // 기존 S.sales에서 동일 파일명 데이터만 제거 (다른 파일 데이터는 보존)
+        if(!S.sales) S.sales = [];
+        // 일반 배열로 누적 (parseSales가 반환한 _devItems/_totalRow는 마지막 파일 것만 보관)
+        var keep = S.sales.filter(function(x){ return x._srcFile !== file.name; });
+        S.sales = keep.concat(parsed);
+        // _totalRow는 누적된 매출 기준으로 재계산 (마지막 ERP 합계가 아닌 전체 합계)
+        S.sales._totalRow = null;
+        // 만약 단 한 개 파일만 올라온 상태면 그 파일의 ERP 정산합계 행을 표시
+        var distinctFiles = {};
+        S.sales.forEach(function(x){ if(x._srcFile) distinctFiles[x._srcFile]=true; });
+        if(Object.keys(distinctFiles).length===1 && parsed._totalRow){
+          S.sales._totalRow = parsed._totalRow;
         }
-        var totalRow = S.sales._totalRow;
+
+        // ERP 자동 분리 개발비: 해당 파일에서 분리된 개발비만 갱신
+        if(!S.sample) S.sample=[];
+        S.sample = S.sample.filter(function(s){ return !(s._fromSales && s._srcFile === file.name); });
+        devs.forEach(function(d){ d._fromSales=true; S.sample.push(d); });
+        renderSample();
+
         var statMsg = S.sales.length+'건';
-        if(devs.length) statMsg += ' + 개발비 '+devs.length+'건';
-        if(totalRow && totalRow.total) statMsg += ' · 부가세포함 '+totalRow.total.toLocaleString()+'원';
+        if(Object.keys(distinctFiles).length>1) statMsg += ' (파일 '+Object.keys(distinctFiles).length+'개)';
+        var allDevs = S.sample.filter(function(s){return s._fromSales;}).length;
+        if(allDevs) statMsg += ' + 개발비 '+allDevs+'건';
+        if(S.sales._totalRow && S.sales._totalRow.total) statMsg += ' · 부가세포함 '+S.sales._totalRow.total.toLocaleString()+'원';
         markDz('dz-sales','i-sales','s-sales',file.name,statMsg);
         renderSales(); calcPnL(); autoSyncNotion();
         if(_p) syncSalesToNotion(_p);
         if(devs.length && _p) syncSampleToNotion(_p);
       }
-      if(type==='sample'){S.sample=parseSample(wb);markDz('dz-sample','i-sample','s-sample',file.name,S.sample.length+'건'); renderSample(); calcPnL(); autoSyncNotion(); if(_p) syncSampleToNotion(_p);}
-      if(type==='exp')   {S.exp   =parseExp(wb);   markDz('dz-exp','i-exp','s-exp',file.name,S.exp.length+'건'); renderPurchase(); calcPnL(); autoSyncNotion(); if(_p) syncCogsToNotion(_p);}
+      if(type==='sample'){
+        var parsedSmp = parseSample(wb);
+        parsedSmp.forEach(function(it){ it._srcFile = file.name; });
+        if(!S.sample) S.sample=[];
+        // 동일 파일명 데이터만 갱신 (ERP 자동 분리분 + 다른 샘플 파일은 보존)
+        S.sample = S.sample.filter(function(s){ return s._fromSales || s._srcFile !== file.name; });
+        S.sample = S.sample.concat(parsedSmp);
+        var smpFiles = {};
+        S.sample.forEach(function(x){ if(x._srcFile && !x._fromSales) smpFiles[x._srcFile]=true; });
+        var nFiles = Object.keys(smpFiles).length;
+        var smpStat = parsedSmp.length+'건' + (nFiles>1?' (파일 '+nFiles+'개)':'');
+        markDz('dz-sample','i-sample','s-sample',file.name,smpStat);
+        renderSample(); calcPnL(); autoSyncNotion(); if(_p) syncSampleToNotion(_p);
+      }
+      if(type==='exp'){
+        var parsedExp = parseExp(wb);
+        parsedExp.forEach(function(it){ it._srcFile = file.name; });
+        if(!S.exp) S.exp = [];
+        // 동일 파일명만 갱신
+        S.exp = S.exp.filter(function(x){ return x._srcFile !== file.name; });
+        S.exp = S.exp.concat(parsedExp);
+        var expFiles = {};
+        S.exp.forEach(function(x){ if(x._srcFile) expFiles[x._srcFile]=true; });
+        var nExp = Object.keys(expFiles).length;
+        var expStat = S.exp.length+'건' + (nExp>1?' (파일 '+nExp+'개)':'');
+        markDz('dz-exp','i-exp','s-exp',file.name,expStat);
+        renderPurchase(); calcPnL(); autoSyncNotion(); if(_p) syncCogsToNotion(_p);
+      }
       if(type==='cn'){
         var parsed=parseCN(wb);
         S.cn=parsed;
@@ -1251,14 +1300,29 @@ function czd(type){
     'cn':    ['dz-cn','i-cn','s-cn','fi-cn']
   };
   var ids=m[type]; if(!ids) return;
-  S[type]=null;
+  if(type==='sales'){
+    S.sales=null;
+    // 매출에서 자동 분리된 개발비도 함께 제거
+    if(S.sample){
+      S.sample = S.sample.filter(function(s){ return !s._fromSales; });
+      if(!S.sample.length) S.sample = null;
+    }
+  } else if(type==='sample'){
+    // 사용자 업로드분만 제거, 매출 자동분리 개발비는 보존
+    if(S.sample){
+      S.sample = S.sample.filter(function(s){ return s._fromSales; });
+      if(!S.sample.length) S.sample = null;
+    }
+  } else {
+    S[type]=null;
+  }
   if(type==='cn') S.cnList=[];
   document.getElementById(ids[0]).classList.remove('ok');
   document.getElementById(ids[1]).textContent='📤';
   document.getElementById(ids[2]).textContent='';
   var fi=document.getElementById(ids[3]); if(fi) fi.value='';
   renderPurchase();
-  if(type==='sales'){renderSales();renderInvArea()}
+  if(type==='sales'){renderSales();renderSample();renderInvArea()}
   if(type==='sample'){renderSample();renderInvArea()}
 }
 
@@ -2584,6 +2648,8 @@ function sanitizeRecord(rec){
 async function onPeriodChange(){
   var period = document.getElementById('g-period').value;
   if(!period) return;
+  // 마지막 기간 저장 (새로고침 후 복원용)
+  try{ localStorage.setItem('ek_lastPeriod', period); }catch(e){}
   var db  = getRecordsDB();
   var rec = db[period];
   var parts = period.split('-');
